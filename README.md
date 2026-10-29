@@ -3,8 +3,8 @@
 Generates in-ice Cherenkov light showers in the format of the CORSIKA 8 full-shower voxel cache: photons per voxel
 in a 20 m × 20 m × 20 m box (960³ voxels of 2.083 cm), light emitted within the first 80 ns. This is the model behind
 the 0.6.4c evaluation (tz skeleton, group detail model, t-cap stop). The trained models and the small prior tables
-are in this folder; no training data is needed.
-
+are in this folder; no training data is needed. This is not yet the final version of the model, so please use it for
+visualization and comparison tests only, not for physics analysis.
 
 ## Quick start: HTCondor (recommended)
 
