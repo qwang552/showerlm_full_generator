@@ -1,7 +1,8 @@
 #!/bin/bash
-# Job script for generate_gpu.sub: run_gpu.sh <repo> <n> <out> <job> <seed0> <gpu: a40 | 1080>
+# Job script for generate_a40.sub / generate_1080.sub: run_gpu.sh <repo> <n> <out> <job> <seed0> <gpu: a40 | 1080>
 set -euo pipefail
 repo=$1 n=$2 out=$3 job=$4 seed0=$5 gpu=$6
+source "$repo/condor/setup_env.sh" gpu
 mkdir -p "$(dirname "$out")"
 echo "$(hostname)  $(nvidia-smi --query-gpu=name,memory.total --format=csv,noheader | head -1)  $(date)"
 t0=$(date +%s)

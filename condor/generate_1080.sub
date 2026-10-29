@@ -1,8 +1,9 @@
-# Generate showers on HTCondor GTX 1080 slots (GPU compute capability 6.x). Activate the Python environment, then from the
-# repository folder:
+# Generate showers on HTCondor GTX 1080 slots (GPU compute capability 6.x).
+# env= is your Python environment (activate script, venv or conda folder); without it the job inherits the
+# submitting shell. From the repository folder:
 #   mkdir -p /scratch/$USER/showerlm_logs
-#   condor_submit condor/generate_1080.sub                                 (8 jobs x 128 showers)
-#   condor_submit condor/generate_1080.sub jobs=2 n=64 seed0=100 outdir=/path/to/new/folder
+#   condor_submit condor/generate_1080.sub env=/path/to/your/env/bin/activate   (8 jobs x 128 showers)
+#   condor_submit condor/generate_1080.sub env=/path/to/your/env/bin/activate jobs=2 n=64 seed0=100 outdir=/path/to/new/folder
 # Defaults: jobs=8, n=128 showers per job, seed0=0, outdir=<repository>/showers_1080, logdir=/scratch/<user>/showerlm_logs
 # (condor logs may not be written to /data/user).  Job k writes <outdir>/job_k with seed seed0 + k.  6 GB is enough
 # (2-4 GB used).  Jobs read and write the shared file system directly.
@@ -17,7 +18,7 @@ universe       = vanilla
 executable     = $(repo)/condor/run_gpu.sh
 arguments      = "$(repo) $(n:128) $(outdir:$(repo)/showers_1080)/job_$(Process) $(Process) $(seed0:0) $(gpu)"
 getenv         = True
-environment    = "OMP_NUM_THREADS=4"
+environment    = "OMP_NUM_THREADS=4 SHOWERLM_ENV=$(env:)"
 request_cpus   = 4
 request_gpus   = 1
 request_memory = 6GB

@@ -9,15 +9,23 @@ It is meant for tests, comparisons and method development, not for physics analy
 
 ## Quick start: HTCondor (recommended)
 
-Generating many showers takes minutes to hours, so submit jobs instead of running `generate.py` by hand. Activate
-the Python environment (`pip install -r requirements.txt`), then from the repository folder:
+Generating many showers takes minutes to hours, so submit jobs instead of running `generate.py` by hand.
+
+You need a Python environment with the packages of `requirements.txt`: numpy, torch (with CUDA for the GPU jobs),
+matplotlib and pyyaml. Give it to the jobs with `env=`, the path to its activate script or to the environment folder
+(venv or conda); the job activates it before anything else. Without `env=`, the job inherits the environment of the
+shell you submit from. For the GTX 1080 (compute capability 6.1) use a torch build that still supports it; the
+timings below were measured with torch 2.6.0 built for CUDA 12.4. Then, from the repository folder:
 
 ```bash
 mkdir -p /scratch/$USER/showerlm_logs
-condor_submit condor/generate_a40.sub                      # A40:      4 jobs x 256 showers, about 45 min per job
-condor_submit condor/generate_1080.sub                     # GTX 1080: 8 jobs x 128 showers, about 55 min per job
-condor_submit condor/generate_cpu.sub jobs=50 n=4          # CPU:      50 jobs x 4 showers, roughly 10 min per job
+condor_submit condor/generate_a40.sub  env=/path/to/your/env/bin/activate            # A40:      4 jobs x 256 showers, about 45 min per job
+condor_submit condor/generate_1080.sub env=/path/to/your/env/bin/activate            # GTX 1080: 8 jobs x 128 showers, about 55 min per job
+condor_submit condor/generate_cpu.sub  env=/path/to/your/env/bin/activate jobs=50 n=4  # CPU: 50 jobs x 4 showers, roughly 10 min per job
 ```
+
+Each job first prints the environment, the Python and torch versions and, for GPU jobs, the CUDA device, and stops
+with an error message if torch is missing or a GPU job has no CUDA. Check these lines in the `.out` / `.err` files.
 
 Change the amount on the command line: `jobs=` (number of jobs), `n=` (showers per job), `seed0=` (job k uses seed
 `seed0 + k`), `outdir=` (default `showers_a40`, `showers_1080`, `showers_cpu` in the repository; job k writes
@@ -26,7 +34,7 @@ and `cpus=` for the CPU file. A job refuses to write into an existing folder, so
 `outdir=` and a new `seed0=`. For example, 1,000 showers on CPU slots:
 
 ```bash
-condor_submit condor/generate_cpu.sub jobs=250 n=4 seed0=1000 outdir=/data/user/$USER/showers_cpu_1000
+condor_submit condor/generate_cpu.sub env=/path/to/your/env/bin/activate jobs=250 n=4 seed0=1000 outdir=/data/user/$USER/showers_cpu_1000
 ```
 
 GPU jobs ask for 8 GB (A40) or 6 GB (GTX 1080) of memory and use 2–5 GB; CPU jobs ask for 8 cores and 8 GB. CPU job
@@ -35,7 +43,7 @@ times are estimated from the login-node test below, not measured on condor slots
 
 ## Time per shower
 
-Measured, model loading not included:
+Measured with Python 3.10, torch 2.6.0 (CUDA 12.4), model loading not included:
 
 | hardware | batches (skeleton, detail) | time per shower |
 |---|---|---|

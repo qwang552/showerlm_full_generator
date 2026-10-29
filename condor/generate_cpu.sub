@@ -1,8 +1,9 @@
-# Generate showers on HTCondor CPU slots (slow: use the GPU file when you can). Activate the Python environment, then
-# from the repository folder:
+# Generate showers on HTCondor CPU slots (slow: use the GPU files when you can).
+# env= is your Python environment (activate script, venv or conda folder); without it the job inherits the
+# submitting shell. From the repository folder:
 #   mkdir -p /scratch/$USER/showerlm_logs
-#   condor_submit condor/generate_cpu.sub
-#   condor_submit condor/generate_cpu.sub jobs=20 n=2 cpus=8 seed0=100 outdir=/path/to/new/folder
+#   condor_submit condor/generate_cpu.sub env=/path/to/your/env/bin/activate
+#   condor_submit condor/generate_cpu.sub env=/path/to/your/env/bin/activate jobs=20 n=2 cpus=8 seed0=100 outdir=/path/to/new/folder
 # Defaults: jobs=10, n=2 showers per job, cpus=8, seed0=0, outdir=<repository>/showers_cpu,
 # logdir=/scratch/<user>/showerlm_logs (condor logs may not be written to /data/user).
 # Job k writes <outdir>/job_k with seed seed0 + k. Jobs read and write the shared file system directly.
@@ -14,7 +15,7 @@ universe       = vanilla
 executable     = $(repo)/condor/run_cpu.sh
 arguments      = "$(repo) $(n:2) $(outdir:$(repo)/showers_cpu)/job_$(Process) $(Process) $(seed0:0)"
 getenv         = True
-environment    = "OMP_NUM_THREADS=$(cpus:8) MKL_NUM_THREADS=$(cpus:8) CUDA_VISIBLE_DEVICES="
+environment    = "OMP_NUM_THREADS=$(cpus:8) MKL_NUM_THREADS=$(cpus:8) CUDA_VISIBLE_DEVICES= SHOWERLM_ENV=$(env:)"
 request_cpus   = $(cpus:8)
 request_memory = 8GB
 request_disk   = 1GB
