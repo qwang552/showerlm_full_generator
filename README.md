@@ -41,7 +41,7 @@ Measured, model loading not included:
 |---|---|---|
 | A40, KV cache | 256, 32 | 10.0 s (skeleton 1.8 s + detail 8.2 s), median of 1,024 showers |
 | GTX 1080, KV cache | 32, 8 | 24.9 s (skeleton 8.2 s + detail 16.8 s), median of 1,024 showers |
-| CPU, 8 threads (login node) | 1, 1 | about 2 min (skeleton 73–84 s + detail 40–56 s), one shower |
+| CPU, 8 threads (login node) | 1, 1 | 2–8 min (skeleton 73–283 s + detail 40–173 s), one shower, four runs |
 | CORSIKA 8, for comparison | | about 10 s per shower (CPU) |
 
 On a busy GPU node the GTX 1080 time rose to about 40 s per shower.
@@ -69,10 +69,12 @@ To look at them, open `visualize.ipynb` (2D projections, time profile and 3D vie
 
 ## Running generate.py directly
 
-Slow; only for a quick test of one or two showers:
+Slow; only for a quick test. On a CPU a shower takes 2 to 8 minutes (depending on the load of the machine), and the
+first progress line after the start-up messages comes when the first skeleton batch is done. Use `--n 1` for a test, and do not run large jobs on a submit or
+login node:
 
 ```bash
-python generate.py --n 4 --out showers --seed 0
+python generate.py --n 1 --out showers_test --seed 0
 ```
 
 | option | default | meaning |

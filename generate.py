@@ -11,6 +11,7 @@ import argparse
 import json
 import os
 import sys
+import time
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
@@ -52,6 +53,36 @@ class TargetRows:
 
     def of_eid(self, e):
         return self.rows[int(e)]
+
+
+def log(msg):
+    print(time.strftime("%H:%M:%S"), msg, flush=True)
+
+
+def add_progress(s06, n):
+    """Progress lines around the skeleton batches, the detail batches and each saved shower (printing only)."""
+    state = dict(skeleton=0, detail=0, saved=0, t0=time.time())
+
+    def timed(fn, what, size):
+        def run(*a, **k):
+            state[what] += 1
+            b = size(a, k)
+            log(f"{what} batch {state[what]} started ({b} showers; {state['saved']}/{n} saved so far)")
+            t = time.time()
+            r = fn(*a, **k)
+            log(f"{what} batch {state[what]} done in {time.time() - t:.0f} s")
+            return r
+        return run
+    s06.generate = timed(s06.generate, "skeleton", lambda a, k: a[2])
+    s06.generate_lockstep = timed(s06.generate_lockstep, "detail", lambda a, k: len(a[2]))
+    save = s06.save04
+
+    def saved(*a, **k):
+        r = save(*a, **k)
+        state["saved"] += 1
+        log(f"shower {state['saved']}/{n} saved ({time.time() - state['t0']:.0f} s since start)")
+        return r
+    s06.save04 = saved
 
 
 def patch(render):
@@ -105,6 +136,7 @@ def main():
     sb, db = a.skel_batch or min(sb, a.n), a.det_batch or min(db, a.n)
     patch(a.render)
     import showerlm.sample06 as s06
+    add_progress(s06, a.n)
     m, pr, s = Path(a.models), HERE / "priors", SETTINGS["sample06"]
     argv = ["--skel-run", m / "skeleton", "--det-run", m / "detail", "--n", a.n, "--skel-batch", sb, "--det-batch", db, "--seed", a.seed,
             "--out", out.parent, "--name", out.name, "--g-prior", pr / "gfeat", "--z-prior", pr / "zplan", "--t-prior", pr / "tplan",
