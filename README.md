@@ -98,10 +98,12 @@ python generate.py --n 1 --out showers_test --seed 0
 The sampling settings are fixed in `run.json` (the 0.6.4c `tz_cap` settings, listed under *Sampler settings*);
 `generate.py` passes them to `showerlm.sample06`.
 
-Self-test: on a GTX 1080, 8 showers from `generate.py` are token-identical to the 0.6.4c evaluation code run with
-the same seed and the same float16 weights. With the original float32 weights the same seed gives different showers
-(float16 rounding changes the sampling path after a few hundred to a few thousand tokens); they are draws of the
-same model, not copies. The A40 test is still running.
+Self-test of this package, on an A40 and on a GTX 1080: 8 showers from `generate.py` are token-identical to the
+0.6.4c evaluation code run with the same seed and the same float16 weights (8 of 8 on both GPUs). With the original
+float32 weights the same seed gives different showers (float16 rounding changes the sampling path after a few hundred
+to a few thousand tokens); they are draws of the same model, not copies. The evaluation numbers below were measured
+with the float32 weights. A 64-shower run of `generate.py` took 11.9 s per shower on the A40 (skeleton batch 64, so
+less amortised than with 256) and 22.9 s on the GTX 1080.
 
 ## Model
 
