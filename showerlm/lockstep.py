@@ -246,7 +246,7 @@ class MultiPlacer:
         return tok, lp
 
     def commit(self, tok_np, sh):
-        """0.6.4a: the accepted strokes of all showers drawn in one renderer call (per stroke, so the same keys as one call
+        """the accepted strokes of all showers drawn in one renderer call (per stroke, so the same keys as one call
         per shower), then each shower's keys go to its own Placer."""
         if not self.x or len(tok_np) == 0:
             return
@@ -395,7 +395,7 @@ def generate_lockstep(model, vocab, skels, device, temperature=1.0, max_steps=40
                 q_skel = float(ms.q_skel[s])
                 inf.update(q_skel=q_skel, plan_n_total_raw=float(n_plan[m].sum()))
                 qt_s = q_targets[s]
-                if qt_s is not None:                                               # 0.6.1t: one factor per shower
+                if qt_s is not None:                                               # one factor per shower
                     empty = nb[m] == 0
                     inf.update(plan_q_det_empty=float(q_plan[m][empty].sum()))
                     qm = np.where(empty, 0.0, q_plan[m])
@@ -410,7 +410,7 @@ def generate_lockstep(model, vocab, skels, device, temperature=1.0, max_steps=40
                         up = np.random.default_rng([abs(int(seeds[s])), int(int(seeds[s]) < 0), 7919]).random(len(xx)) < (xx - lo)
                         n_int = np.where(nb[m] > 0, np.maximum(lo + up, 1.0), 0.0)
                         nm = np.where(nb[m] < GN_EXACT, n_int, xx)
-                    if ring is not None:                                           # 0.6.3 nq_r: per ring x depth cell of the piece
+                    if ring is not None:                                           # nq_r: per ring x depth cell of the piece
                         nm, rinfo = ring.apply(vocab, ms.skels[s], nm, nb[m], ring_clip, seed=int(seeds[s]))
                         inf.update(**rinfo)
                     n_plan[m] = nm; q_plan[m] = qm
@@ -424,7 +424,7 @@ def generate_lockstep(model, vocab, skels, device, temperature=1.0, max_steps=40
             cnt = torch.zeros(G, dtype=torch.float64, device=device); qsum = torch.zeros(G, dtype=torch.float64, device=device)
             kind_allow = plan_kind_allowed(n_kind, torch.ones(G, dtype=torch.bool, device=device), bn)
         rctx = dict(sample_context(model, prev, t_prev, n, device), **hctx, row_b=row_b, okoff=koff_t[rows], opoff=poff_t[rows])
-        if otab is not None:                                                      # 0.6.4a: the table stays on the device
+        if otab is not None:                                                      # the table stays on the device
             if OCC_CHECK:                                                          # the 0.6.3 per-shower tables, concatenated: must be equal
                 ok_ = np.concatenate([osts[s].keys + ms.key_off[s] for s in range(S)])
                 os_ = np.concatenate([o.steps for o in osts], 0)

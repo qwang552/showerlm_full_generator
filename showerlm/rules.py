@@ -54,11 +54,11 @@ class Rules:
         db = np.arange(vocab.sizes[self.ai["dx"]])
         self.d_ok = torch.as_tensor((db >= 1) & (np.abs(vocab.dec_d(db)) <= D_MAX))
         self.s_ok = torch.as_tensor(np.arange(vocab.sizes[self.ai["s"]]) >= 1)
-        # 0.6.2 pos_first (group detail models): the head position is decoded before t, so the cone masks of the position
+        # pos_first (group detail models): the head position is decoded before t, so the cone masks of the position
         # (cone, hung_cone) are taken at the cap and t gets the cone as its floor at the decoded head voxel (cone_floor)
         self.pos_first = bool(getattr(model, "pos_first", False))
         self._dev = None
-        self._dsets, self._dvecs = {}, {}                                          # 0.6.3: per-device caches of _dset / _dvec
+        self._dsets, self._dvecs = {}, {}                                          # per-device caches of _dset / _dvec
 
     def to(self, device):
         if self._dev != device:
@@ -147,7 +147,7 @@ class Rules:
 
     def _dset(self, device):
         """Offsets a pointer-placed head can take: dec_d of the d bins allowed by support (all bins when it is off).
-        0.6.3: built once per device (it was rebuilt from numpy at every call)."""
+        built once per device (it was rebuilt from numpy at every call)."""
         key = str(device)
         if key not in self._dsets:
             nb = self.v.sizes[self.ai["dx"]]
@@ -204,7 +204,7 @@ class Rules:
         return torch.full_like(t, self.t_cap) if self.pos_first else t
 
     def cone_floor(self, tok):
-        """0.6.2 pos_first: lowest t bin by which light reaches the head voxel (ix, iy, iz) of every row (N, A), the cone
+        """pos_first: lowest t bin by which light reaches the head voxel (ix, iy, iz) of every row (N, A), the cone
         rule read the other way round (first bin with X(t)^2 >= g^2; 0 for rows that are not strokes, and when cone is off)."""
         ai = self.ai
         N = tok.shape[0]
@@ -302,7 +302,7 @@ def apply_mask(logits, ok, target=None, count=None, key=None, active=None):
     return logits.masked_fill(~ok, float("-inf"))
 
 
-_FALLBACK_T = {}                                                                   # 0.6.3: device-side fallback counts per attribute
+_FALLBACK_T = {}                                                                   # device-side fallback counts per attribute
 
 
 def sample_fallbacks():
@@ -324,7 +324,7 @@ def check_order(model):
     if "lt" in o:
         need += [("t", "lt"), ("len", "lt")]
     R = getattr(model, "rules", None)
-    if getattr(model, "pos_first", False):                                         # 0.6.2: the head first, t after it
+    if getattr(model, "pos_first", False):                                         # the head first, t after it
         need = [x for x in need if x[0] != "t"] + [(c, "t") for c in ("ptr", "s", "dx", "dy", "dz", "ix", "iy", "iz")] + [("s", "dx"), ("dx", "dy"), ("dy", "dz")]
         if "lt" in o:
             need += [("t", "lt")]                                                   # the lt mask reads t
@@ -346,7 +346,7 @@ def constrain(R, model, name, lg, tok, ctx, target=None, count=None, active=None
     if name == "kind":
         ok = R.kind(n, ctx["prev_lt"], ctx["has_prev"], ctx["t_rule"], ctx.get("prev_tok") if not R.detail else None)
     elif name == "t" and R.pos_first:
-        # 0.6.2: t after the head; floor = the light cone at the head voxel (with time_order on also the previous t)
+        # t after the head; floor = the light cone at the head voxel (with time_order on also the previous t)
         floor = R.cone_floor(tok)
         if R.on["time_order"] and ctx.get("t_order") is not None:
             floor = torch.maximum(floor, torch.where(is_cont, torch.zeros_like(floor), ctx["t_order"].clamp(0, R.v.n_t - 1)))
@@ -424,7 +424,7 @@ def _hung_cone(R, model, name, n, tok, ctx, is_cont):
         ctx["_anc"] = R.anchors(_parent(R, model, tok, ctx), tok[:, ai["s"]])
     anc = ctx["_anc"]
     from .tables import tables_for
-    T = tables_for(R.v, tok.device)                                                # 0.6.3: dec_d from the device table
+    T = tables_for(R.v, tok.device)                                                # dec_d from the device table
     hx = (anc[:, 0] + T.d[tok[:, ai["dx"]].clamp(0, len(T.d) - 1)]).clamp(0, R.v.g - 1)
     hy = (anc[:, 1] + T.d[tok[:, ai["dy"]].clamp(0, len(T.d) - 1)]).clamp(0, R.v.g - 1)
     return every & (~hung[:, None] | R.d_cone(name, n, t, anc, hx, hy))

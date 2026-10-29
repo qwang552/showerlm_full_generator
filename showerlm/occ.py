@@ -114,12 +114,8 @@ class OccState:
 
 
 class OccTable:
-    """0.6.4a: the occupancy of ALL showers of a lockstep batch in one table kept on the device: keys = every shower's keys
-    plus its offset s * g^3, steps (M, 3).  Equal, at every step, to concatenating the per-shower OccState tables (what the
-    0.6.3 sampler uploaded whole at every step): the offsets keep the showers' keys apart, so merging the new entries of all
-    showers at once gives the union of the per-shower merges.  add() draws the accepted strokes of all showers in ONE
-    renderer call (drawn_entries is per stroke) instead of one call per shower, and merges on the device instead of
-    inserting into numpy tables and uploading them again."""
+    """Occupancy of all showers of a lockstep batch in one device table (keys offset by s * g^3).  At every step it
+    equals the per-shower OccState tables concatenated."""
 
     def __init__(self, vocab, skels, key_off, ranges, w_occ, device):
         self.v, self.ranges, self.w, self.dev = vocab, np.asarray(ranges, dtype=np.float64).reshape(3, 2), float(w_occ), device
@@ -162,10 +158,7 @@ def piece_geometry(vocab, skel):
 
 def occ_context(vocab, skel, keys, steps, oj, opiece, device, okoff=None, opoff=None):
     """Context of the feature function: occupancy (keys (M,), steps (M, 3)), per row the rank oj (N,) of the stroke being
-    decoded and the piece opiece (N,) of its group, and the skeleton's piece geometry.
-    0.6.3 (several showers decoded in lockstep, showerlm/lockstep.py): skel = the pieces of ALL showers one after the
-    other, keys = every shower's keys plus its offset s * g^3, and per row okoff (N,) = that offset and opoff (N,) = the
-    index of its shower's first piece (added to the row's pointer); zeros (the default) = one shower, as 0.6.2."""
+    decoded and the piece opiece (N,) of its group, and the skeleton's piece geometry."""
     P, u, L, anc = piece_geometry(vocab, skel)
     dm = np.full(vocab.sizes[vocab.index["dx"]], -1, np.int64)
     b = np.arange(1, len(dm))
@@ -237,7 +230,7 @@ def features(name, tok, oc, rows, ai):
     j = oc["oj"][rows]
     n = len(rows)
     zr = torch.zeros(len(oc["oj"]), dtype=torch.long, device=dev)
-    koff = oc.get("okoff", zr)[rows]                                                            # 0.6.3: key / piece offsets of the row's shower
+    koff = oc.get("okoff", zr)[rows]                                                            # key / piece offsets of the row's shower
     poff = oc.get("opoff", zr)[rows]
     if name in ("dx", "dy", "dz"):
         nb = oc["odmap"].shape[0]

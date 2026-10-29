@@ -17,7 +17,7 @@ from .data import TokenStore, budget_bins
 from .tokens import KIND_EOS, KIND_PAD, KIND_STROKE
 
 GROUP_MODES = ("join",)
-GROUP_ORDERS = ("time", "along")                  # stroke order inside a group (0.6.2: along)
+GROUP_ORDERS = ("time", "along")                  # stroke order inside a group (along)
 
 # group plan (model.group_plan, 0.6.0.dev2): strokes and photons of a group, predicted at its GS position
 GN_EXACT, GN_BINS, GN_MAX = 16, 64, 8192         # strokes: bins 0..15 exact, then 48 log bins from 16 to 8192 (x1.14 each)
@@ -82,7 +82,7 @@ class GroupStore(TokenStore):
 
 
 def along_key(vocab, skel, tok, grp):
-    """0.6.2 group_order along: position of every stroke's head point along its group's piece (projection on the
+    """group_order along: position of every stroke's head point along its group's piece (projection on the
     segment, clipped to [0, L], voxel units; the arithmetic of tools/extract_skeleton.group_of)."""
     ix = vocab.index
     if len(tok) == 0:
@@ -121,19 +121,15 @@ def group_ranks(groups, n):
 
 
 def pack_item(tok, skel, groups, sel, P, A, q_tok=None):
-    """One training item from the groups `sel` (indices into groups) of an event: positions [GS, s1 .. sm] per group,
-    at most P positions (a group longer than P - 1 strokes is cut: its first P - 1 strokes, no EOS target).
-    Returns dict of tensors: skel (K, A), tok_in / tok_out (P, A), seg / piece / far (P,) long, gs (P,) bool, and the
-    group plan: plan_n / plan_q (P,) = bins of the group's strokes / photons at its GS position (-1 elsewhere), bud (P, 2)
-    = budget bins after the input stroke (strokes / photons still to come, counted against the DECODED plan bins, the
-    way the sampler counts).  q_tok (N,) photons per stroke from its lq bin (stroke_photons); zeros if None."""
+    """One training item from the groups `sel` (indices into groups) of an event: positions [GS, s1 .. sm] per group, at
+    most P positions (a group longer than P - 1 strokes is cut: its first P - 1 strokes, no EOS target)."""
     if q_tok is None:
         q_tok = np.zeros(len(tok))
     plan_n = np.full(P, -1, np.int64); plan_q = np.full(P, -1, np.int64); bud = np.zeros((P, 2), np.int64)
     tok_in = np.zeros((P, A), np.int64)
     tok_out = np.full((P, A), KIND_PAD, np.int64)
     seg = np.full(P, -1, np.int64); piece = np.zeros(P, np.int64); far = np.zeros(P, np.int64); gs = np.zeros(P, bool)
-    oj = np.zeros(P, np.int64)                                                     # 0.6.2: rank of the target in its group
+    oj = np.zeros(P, np.int64)                                                     # rank of the target in its group
     p = 0
     for j, g in enumerate(sel):
         k, f, idx = groups[g]
@@ -162,7 +158,7 @@ def pack_item(tok, skel, groups, sel, P, A, q_tok=None):
 
 
 ITEM_KEYS = ("skel", "tok_in", "tok_out", "seg", "piece", "far", "gs", "bud", "plan_n", "plan_q")
-OCC_KEYS = ("oj", "okeys", "ostep")                # 0.6.2 occupancy (model.occ_feat): per position rank, then the event's occupancy
+OCC_KEYS = ("oj", "okeys", "ostep")                # occupancy (model.occ_feat): per position rank, then the event's occupancy
 N_POS_KEYS = 11                                    # batch entries 1 .. 10 are per position (trim_group cuts them)
 
 
@@ -190,7 +186,7 @@ class GroupPackDataset(Dataset):
             raise ValueError(f"group mode {mode} not in {GROUP_MODES}")
         self.store, self.P, self.n_items, self.seed, self.fixed, self.mode, self.k_max = store, int(P), int(n_items), int(seed), fixed, mode, int(k_max)
         self.A = len(store.vocab.names)
-        self.order, self.occ = order, occ                                           # 0.6.2: in-group order; occupancy config (None = off)
+        self.order, self.occ = order, occ                                           # in-group order; occupancy config (None = off)
 
     def __len__(self):
         return self.n_items
@@ -204,7 +200,7 @@ class GroupPackDataset(Dataset):
         return tok, skel, event_groups(tok, skel, grp, self.store.vocab, self.mode, self.order)
 
     def with_occ(self, item, tok, skel, groups):
-        """0.6.2: add the event's occupancy timeline (all groups, ranks in the model's order) to a pack item."""
+        """add the event's occupancy timeline (all groups, ranks in the model's order) to a pack item."""
         if self.occ is None:
             return item
         from .occ import event_occupancy
@@ -283,7 +279,7 @@ class GroupDetailLM(DetailLM):
             raise ValueError(f"model.group_order {group_order} not in {GROUP_ORDERS}")
         self.group_mode = group_mode
         self.group_plan = bool(group_plan)
-        # 0.6.2: occupancy / geometry features of the head attributes (showerlm/occ.py; None = off), head position decoded
+        # occupancy / geometry features of the head attributes (showerlm/occ.py; None = off), head position decoded
         # before t (pos_first: t floor = the light cone at the head voxel), stroke order inside a group (time | along)
         self.pos_first, self.group_order = bool(pos_first), group_order
         self.occ_cfg, self.occ = None, None
@@ -327,7 +323,7 @@ class GroupDetailLM(DetailLM):
         return e_skel, h_skel, caches
 
     def occ_train_context(self, skel, piece, oj, okeys, ostep):
-        """0.6.2: feature context of a pack (showerlm/occ.py): the event's occupancy, rank and group piece per position."""
+        """feature context of a pack (showerlm/occ.py): the event's occupancy, rank and group piece per position."""
         from .occ import occ_context
         oc = occ_context(self._vocab_occ, skel[0].cpu().numpy(), np.zeros(0, np.int64), np.zeros((0, 3), np.int64), oj[0], piece[0], skel.device)
         oc["okeys"], oc["ostep"] = okeys[0], ostep[0].to(torch.int32)
@@ -499,33 +495,10 @@ def hung_positions(vocab, skel, tok):
 def generate_group_detail(model, vocab, skel, device, temperature=1.0, max_steps=4096, seed=0, rng=None, forced_groups=None, attr_temp=None,
                           q_total_range=None, plan_tries=64, stop_at_plan=False, q_target=None, target_scale="q", target_clip=(0.5, 2.0),
                           placer=None):
-    """Detail strokes of ONE shower given its skeleton (K, A): every group of the shower is a row of one batch (rows
-    share the skeleton keys / values); a row leaves the batch at its EOS.  forced_groups (tests, timing): list of
-    (piece, far, (m, A) tokens), scored instead of sampled; info['logp'] = summed log-probability per group (equals
-    GroupDetailLM.position_logprobs).  Returns (tokens (T, A) sorted by t, info).
-    Group plan models (model.group_plan): the plans of ALL groups are drawn at the first step, before any stroke, so
-    the planned photons of the whole shower (skeleton photons from its lq bins + the groups' planned photons) are known
-    then.  q_total_range (lo, hi): redraw all plans together (at most plan_tries times) until that total is inside; the
-    accepted plans are then a draw of the model conditioned on the total being in range (the draw closest to the range
-    is kept if none is).  stop_at_plan: end a group once it has its planned number of strokes (off = the model's EOS,
-    as trained).
-    q_target (0.6.1t; photons of the whole shower, counted like the plan: lq bins of skeleton + detail): after the plans
-    are drawn, every group's planned photons are multiplied by ONE factor f = (q_target - skeleton photons) / (planned
-    detail photons), clipped to target_clip, so the planned total is q_target.  Why (REAL, step 5 of 2026-10-23): the
-    groups follow their plans (realised / planned detail photons p50 1.000, p5-p95 0.98-1.01) but on generated skeletons
-    the plans do not compensate the skeleton light (corr -0.14; -0.85 on true skeletons, -0.99 in the truth), so the
-    total photons spread 3x the truth's.  target_scale "q": only the photons (strokes as planned); "nq": the planned
-    strokes are multiplied by f too (groups planned below 16 strokes, whose bins are exact counts, get an integer
-    count by stochastic rounding, at least 1, so their budget stays on the integers they were trained on).  Groups planned
-    with 0 strokes end at their first step, so their planned photons are left out (set to 0) before f is computed.  The
-    first stroke of a group is decoded before any budget input (as in training); the scaled plan acts through the budget
-    from the second stroke on.  info: q_skel, plan_n_total_raw, plan_q_det_raw (with a target: without the 0-stroke groups,
-    whose photons are plan_q_det_empty), plan_q_det / plan_q_total / plan_n_total after the scaling, target_f,
-    target_f_raw, target_clipped; per group (every plan model): plan_bn / plan_bq (drawn bins), plan_n / plan_q (the plan
-    the budget counts from, after any scaling).
-    placer (0.6.1x, showerlm/place.py Placer of this skeleton): after every step the strokes that break its rules (head on
-    an occupied voxel, unhung head not nearest to the group's piece) are decoded again after their kind; the accepted
-    strokes then occupy their drawn voxels.  None or mode off: the same tokens as without it.  info['place'] = its stats."""
+    """Detail strokes of ONE shower given its skeleton (K, A): every group of the shower is a row of one batch (rows share
+    the skeleton keys / values); a row leaves the batch at its EOS.  forced_groups (tests, timing): list of (piece,
+    far, (m, A) tokens), scored instead of sampled; info['logp'] = summed log-probability per group (equals
+    GroupDetailLM.position_logprobs).  Returns (tokens (T, A) sorted by t, info)."""
     A = len(vocab.names)
     skel = np.asarray(skel, dtype=np.int64).reshape(-1, A)
     K = len(skel)
@@ -576,7 +549,7 @@ def generate_group_detail(model, vocab, skel, device, temperature=1.0, max_steps
         hctx = hung_context(model.rules, sk_t, torch.ones(1, K, dtype=torch.bool, device=device), G)
     rows = torch.arange(G, device=device)                                          # active rows -> group index
     ost = oc0 = None
-    if getattr(model, "occ", None) is not None:                                    # 0.6.2: occupancy as the training data builds it
+    if getattr(model, "occ", None) is not None:                                    # occupancy as the training data builds it
         if not use_rules:
             raise ValueError("model.occ_feat needs the trained rules (the features ride in the rule context)")
         from .occ import OccState, occ_context, update_occ
@@ -606,7 +579,7 @@ def generate_group_detail(model, vocab, skel, device, temperature=1.0, max_steps
             cnt = np.zeros(G); qsum = np.zeros(G)
             q_skel = float(stroke_photons(vocab, skel).sum())
             info.update(q_skel=q_skel, plan_n_total_raw=float(n_plan.sum()))
-            if q_target is not None:                                               # 0.6.1t: one factor for all groups
+            if q_target is not None:                                               # one factor for all groups
                 nb = bn.cpu().numpy()
                 empty = nb == 0                                                    # planned 0 strokes: EOS first (kind_allow), photons never drawn
                 info.update(plan_q_det_empty=float(q_plan[empty].sum()))
@@ -680,7 +653,7 @@ def generate_group_detail(model, vocab, skel, device, temperature=1.0, max_steps
     sizes = np.bincount(gr, minlength=G)
     o = np.lexsort((np.arange(len(allt)), allt[:, vocab.index["t"]])) if len(allt) else np.zeros(0, np.int64)
     st = np.concatenate([np.full(len(r), s, np.int64) for r, s in zip(kept_rows, kept_step)]) if kept_tok else np.zeros(0, np.int64)
-    info.update(steps=step + 1, max_group=int(sizes.max()) if G else 0, logp=logp_g.cpu().numpy(), group_of=gr[o], step_of=st[o])   # 0.6.2: sampler step per stroke
+    info.update(steps=step + 1, max_group=int(sizes.max()) if G else 0, logp=logp_g.cpu().numpy(), group_of=gr[o], step_of=st[o])   # sampler step per stroke
     if placer is not None:
         info["place"] = dict(placer.stats)
         if kept_rec:                                                               # per detail stroke, aligned with the output

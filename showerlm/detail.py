@@ -29,7 +29,7 @@ def detail_mask(K, n_prefix, n, window, skel_len):
     m = sq & sk & (j <= i)                                                         # skeleton block: causal
     m |= ~sq & sk                                                                  # prefix / detail: the whole skeleton
     ii, jj = i - K, j - K
-    band = ((jj <= ii) & (jj > ii - window)) | ((jj < n_prefix) & (jj <= ii))      # 0.3.0 banded causal mask, shifted by K
+    band = ((jj <= ii) & (jj > ii - window)) | ((jj < n_prefix) & (jj <= ii))      # banded causal mask, shifted by K
     m |= ~sq & ~sk & band
     valid = torch.arange(K, device=dev)[None, :] < skel_len[:, None]               # (B, K)
     col = torch.ones(len(skel_len), L, dtype=torch.bool, device=dev)
@@ -274,7 +274,7 @@ def collate_detail(items):
 
 
 # ---------------------------------------------------------------- sampling
-# 0.6.3.1: the attribute decoder of decode_detail runs over at most this many rows at a time (its rows are independent;
+# the attribute decoder of decode_detail runs over at most this many rows at a time (its rows are independent;
 # the sampling stays over all rows, so the random stream is unchanged).  Keeps a lockstep batch of several showers
 # (10^4+ rows) inside 8 GB.  SHOWERLM_ATTR_CHUNK=0: all rows at once (0.6.3).
 ATTR_CHUNK = int(os.environ.get("SHOWERLM_ATTR_CHUNK", "2048"))
@@ -300,21 +300,7 @@ def decode_detail(model, ctx, h_skel, skel_valid, skels, vocab, temperature=1.0,
                   ptr_allow=None, fixed_fn=None, kind_allow=None, keep=None, n_keep=0, ms=None):
     """One detail stroke per sample.  ctx (B, d); h_skel (B, K, d) skeleton outputs; skel_valid (B, K); skels: list of
     (K_b, A) numpy skeletons (for the anchors).  forced (B, A): score these values instead of sampling (tests); then
-    the sampling-only masks (no PAD / CONT, no EOS) are not applied.  t_prev (B,) (sampling rules, never broken by the
-    truth): t >= the previous detail stroke's t (the detail strokes are in time order), t <= enc_t(12 ns), and a head
-    placed by absolute voxel is not deeper than light can go by the upper edge of its t bin (+ 1 voxel).  Returns
-    tok (B, A) and logp (B,) of the active attributes (the training loss terms).
-    rctx (0.5 models, showerlm.rules.sample_context): the rules the model was trained with, applied through
-    showerlm.rules.constrain as in the loss (also when forced, so logp equals the teacher-forced value); the 0.4
-    sampling-only masks (t_prev, support, kind) are then not used.
-    0.6 group model (showerlm.group): ptr_allow (B, K + 1) bool = the pointer bins of each row's group (applied before
-    the rules, as in its loss); fixed_fn(tok) -> (B, 3) head voxels of hung rows (vectorised; skels may then be None);
-    kind_allow (B, n_kind) bool: the group-plan mask of the kind (applied after the rules, as in its loss).
-    0.6.1x (showerlm/place.py): keep (B, A), n_keep: the first n_keep attributes of model.order are taken from keep
-    (masked and scored as when sampled) and the rest are sampled: a stroke decoded again after its kind (n_keep 1).
-    0.6.3 (showerlm/lockstep.py): ms = a MultiSkel (rows of several showers at once): the pointer logits / features come
-    from each row's own skeleton (rctx['row_b']), h_skel / skel_valid are then the padded (S, Kmax) tensors, and fixed_fn is
-    called as fixed_fn(tok, rctx).  One shower: the same calls as without ms."""
+    the sampling-only masks (no PAD / CONT, no EOS) are not applied."""
     from .sample import cone_iz_min, masked_or_cap
     if rctx is not None:
         from .rules import constrain, constrain_ptr, hung_context
@@ -330,7 +316,7 @@ def decode_detail(model, ctx, h_skel, skel_valid, skels, vocab, temperature=1.0,
     inputs = []                                                                     # decoder inputs of the slots decoded so far
     ptr = torch.zeros(B, dtype=torch.long, device=dev)
     pos_fixed = None
-    caches = {} if _model.ATTR_KV else None                                       # 0.6.4b SHOWERLM_ATTR_KV=1 (chunks: model.ATTR_KV_CHUNK)
+    caches = {} if _model.ATTR_KV else None                                       # SHOWERLM_ATTR_KV=1 (chunks: model.ATTR_KV_CHUNK)
     for p, a in enumerate(model.order):
         if caches is not None:
             y = attr_kv_step(model, (inputs[-1] if p else x0) + model.slot.weight[None, p: p + 1, :], caches)
@@ -352,7 +338,7 @@ def decode_detail(model, ctx, h_skel, skel_valid, skels, vocab, temperature=1.0,
             inputs.append(ms.ptr_feature(ptr, rctx["row_b"]) if ms is not None else model.ptr_feature(h_skel, ptr[:, None]))
             continue
         lg = model.heads[a](y).float()
-        if getattr(model, "occ", None) is not None and rctx is not None and "okeys" in rctx:   # 0.6.2 occupancy / geometry bias
+        if getattr(model, "occ", None) is not None and rctx is not None and "okeys" in rctx:   # occupancy / geometry bias
             from .occ import apply_occ
             lg = apply_occ(model, name, lg, y, tok, rctx)
         if name == "lt":
@@ -445,15 +431,7 @@ def fixed_positions(tok, skels, vocab):
 
 
 class DetailSampler:
-    """Incremental decoding state of the detail model for a batch of skeletons.
-
-    The model only ever sees contexts of the form it was trained on: [skeleton][prefix counted at the chunk start w0]
-    [detail strokes w0 .. j - 1] with at most `chunk` strokes (the longest training chunk).  Strokes are appended one by
-    one to a KV cache; when the chunk is full, the cache is rebuilt in one forward pass as a new chunk that starts
-    `chunk - rebuild_every` strokes back, with its prefix counters (QCUM, NCUM, TSTART) computed at that start exactly
-    as the training data computes them (data.bud_plan: relative to the decoded plan, photons from the lq bins).  So the
-    next `rebuild_every` strokes are generated at chunk positions chunk - rebuild_every .. chunk, as in training, and
-    no stroke ever sees K/V computed under a different prefix."""
+    """Incremental decoding state of the detail model for a batch of skeletons."""
 
     def __init__(self, model, vocab, skels, device, chunk=1024, rebuild_every=256, tstart_init=0):
         if not 0 < rebuild_every < chunk:

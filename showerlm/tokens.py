@@ -21,13 +21,7 @@ COH_EDGES = np.array([0.0, 0.5, 0.8, 0.9, 0.95, 0.99, 0.999, 1.0001])
 
 
 class Vocab:
-    """Bin definitions of every attribute; encode / decode between physical values and integer bins.
-
-    v3 (0.3.0): kind has 4 values (PAD, STROKE, EOS, CONT) and a 20th attribute `lt` = the length of the chain that is
-    still to come after this piece (voxel units, log bins; 0 = this piece ends the chain).  So the first piece of a
-    track says how long the track will be, every later piece is a CONT whose parent is the previous token (ptr 1,
-    s = end), and "does the chain go on" is read from lt instead of being guessed again at every piece.  Old token
-    files and checkpoints (no `v3` in their vocab dict) keep the 0.1 / 0.2 vocabulary."""
+    """Bin definitions of every attribute; encode / decode between physical values and integer bins."""
 
     def __init__(self, g=192, t_max=13.0, n_t=512, len_max=32.0, n_len=65, w_ptr=2048, n_th=180, n_ph=360, n_q=96, q_log_max=7.0,
                  n_c=32, c_log_max=4.0, n_s=16, n_off=8, v3=False, n_lt=24, lt_max=400.0, t_cut=12.0):

@@ -59,12 +59,10 @@ def budget_bins(rem_n, rem_q):
 
 
 def event_counters(tok, q_cum, q_total, vocab, bud_plan=False):
-    """Running counters of one event as the model sees them, for every position k = 0 .. T:
-    ncum[k], qcum[k] = fraction of the strokes / photons before stroke k (prefix NCUM / QCUM of a chunk starting at k);
-    rem_n[k], rem_q[k] = strokes / photons still to come after the first k strokes (budget input of stroke k - 1).
-    bud_plan False (0.3.0): exact truth counts.  bud_plan True (0.4): the way the sampler counts them, i.e. relative to
-    the PLAN it decoded from the prefix bins (dec_ntok(enc_ntok(T)), dec_qtot(enc_qtot(Q))) and with the photons of the
-    strokes read from their lq bins; so the budget need not be exactly 0 at the last stroke, as in generation."""
+    """Running counters of one event as the model sees them, for every position k = 0 .. T: ncum[k], qcum[k] = fraction of
+    the strokes / photons before stroke k (prefix NCUM / QCUM of a chunk starting at k); rem_n[k], rem_q[k] = strokes /
+    photons still to come after the first k strokes (budget input of stroke k - 1). bud_plan False (0.3.0): exact truth
+    counts.  bud_plan True (0.4): the way the sampler counts them, i.e."""
     T = len(tok)
     k = np.arange(T + 1, dtype=np.float64)
     if not bud_plan:
@@ -122,33 +120,21 @@ class TokenStore:
 
 
 class ChunkDataset(Dataset):
-    """Random chunks: item = (prefix (6,), tok_in (seq_len, A), tok_out (seq_len + 1, A), bud (seq_len, 2), lm (seq_len,));
-    PAD where shorter.
-
-    tstart_prev: prefix TSTART = t of the last stroke before the chunk (0 at the shower start), as the sampler knows it.
-    birth_ptr=False (0.3.0): only CONT pieces keep their pointer (ptr 1, s = end, small offset); every other stroke is
-      written with ptr 0 and its absolute head voxel, i.e. the model places new strokes by absolute position and the
-      pointer is used only for continuations (whose parent is always the previous token).
-    bud: per input stroke, the strokes and photons still to come AFTER it (the sampler keeps the same two counters);
-      bud_plan (0.4): counted relative to the decoded plan, as the sampler counts (event_counters).
-    whole_sequence (0.4 skeletons): a sequence that fits in seq_len is always taken whole from its first stroke.
-    lm: landmark flag of an input stroke (lq bin >= landmark_lq): the model keeps landmarks visible outside the window.
-    zplan (0.6.1z, showerlm.zplan config dict): the planned skeleton light per depth slice is appended to the prefix (after
-      G) and the light still to come per slice after each input stroke to its budget (bud (seq_len, 2 + K)); random chunks
-      (__getitem__) scale the plan by exp(N(0, zplan.jitter)) per slice, item(e, k) without rng uses the exact plan."""
+    """Random chunks: item = (prefix (6,), tok_in (seq_len, A), tok_out (seq_len + 1, A), bud (seq_len, 2), lm
+    (seq_len,)); PAD where shorter."""
 
     def __init__(self, store: TokenStore, seq_len, n_items, seed=0, fixed=False, tstart_prev=False, birth_ptr=True, landmark_lq=-1, bud_plan=False,
                  whole_sequence=False, gtable=None, zplan=None, tplan=None):
         self.store, self.seq_len, self.n_items, self.seed, self.fixed = store, int(seq_len), int(n_items), int(seed), fixed
         self.tstart_prev, self.birth_ptr, self.landmark_lq, self.bud_plan = bool(tstart_prev), bool(birth_ptr), int(landmark_lq), bool(bud_plan)
         self.whole_sequence = bool(whole_sequence)
-        self.gtable = gtable                                                         # 0.6.1g: showerlm.gfeat.GTable, G bins appended to the prefix
+        self.gtable = gtable                                                         # showerlm.gfeat.GTable, G bins appended to the prefix
         if gtable is not None:
             missing = [int(e) for e in store.eids if int(e) not in gtable.by_eid]
             if missing:
                 raise SystemExit(f"G table {gtable.gdir} has no row for {len(missing)} events of {store.root} (first {missing[:5]})")
-        self.zplan = zplan                                                           # 0.6.1z: showerlm.zplan config (edges, ranges, n_bins, q_max)
-        self.tplan = tplan                                                           # 0.6.3: showerlm.tplan config, columns after the zplan ones
+        self.zplan = zplan                                                           # showerlm.zplan config (edges, ranges, n_bins, q_max)
+        self.tplan = tplan                                                           # showerlm.tplan config, columns after the zplan ones
         self.A = len(store.vocab.names)
         self.it = store.vocab.index["t"]
 
@@ -184,7 +170,7 @@ class ChunkDataset(Dataset):
             zrem, _ = remaining_bins(tok, self.store.vocab, self.zplan, scale)       # (T + 1, K): row 0 = plan, row k + 1 = after token k
             prefix = np.concatenate([prefix, zrem[0]])
         trem = None
-        if self.tplan is not None:                                                  # 0.6.3: the same for the lateness slices
+        if self.tplan is not None:                                                  # the same for the lateness slices
             from .tplan import remaining_bins as t_remaining
             jit = float(self.tplan.get("jitter", 0.0))
             scale = np.exp(rng.normal(0.0, jit, len(self.tplan["edges"]))) if (jit > 0 and rng is not None) else None

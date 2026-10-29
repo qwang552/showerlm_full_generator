@@ -34,7 +34,7 @@ def sync(device):
 
 
 def photon_summary(rows, ref=None):
-    """0.6.1t: total photons, the detail-skeleton relation and how the realised detail follows the plan; NaN where it does
+    """total photons, the detail-skeleton relation and how the realised detail follows the plan; NaN where it does
     not apply; ref = the truth's statistics (targetfit.fit) put next to them as truth_ref."""
     col = lambda k: np.array([float(r[k]) for r in rows])  # noqa: E731
     qs, qd, qt, nd = col("q_skel_tok"), col("q_det_tok"), col("q_total"), col("n_det")
@@ -294,7 +294,7 @@ def main():
                 ranges=np.asarray(a.ranges, dtype=np.float64).reshape(3, 2).tolist(), q_total_range=a.q_total_range, plan_tries=a.plan_tries,
                 target_total=a.target_total, target_scale=a.target_scale if target else None, target_clip=a.target_clip if target else None,
                 target_slope=b_slope if target else None)
-    # 0.6.3: the sampler / detail batch (the random stream of the detail) and the ring table change the detail too; a run made
+    # the sampler / detail batch (the random stream of the detail) and the ring table change the detail too; a run made
     # with --det-batch 1 by either sampler has the 0.6.2 detail stream, so those compare as equal
     s_mine = dict(sampler=("legacy" if a.det_batch == 1 else a.sampler), det_batch=a.det_batch)
     r_mine = dict(target_ring=str(Path(a.target_ring).resolve()) if a.target_ring else None, ring_clip=a.ring_clip if a.target_ring else None)
@@ -343,7 +343,7 @@ def main():
     nan = float("nan")
     i = 0
     while i < n_total:
-        B = min(a.skel_batch if not (truth or sfrom) else max(a.skel_batch, a.det_batch), n_total - i)   # 0.6.3.1: given skeletons are read det-batch at a time
+        B = min(a.skel_batch if not (truth or sfrom) else max(a.skel_batch, a.det_batch), n_total - i)   # given skeletons are read det-batch at a time
         sync(device)
         t0 = time.time()
         if sfrom is not None:
@@ -442,7 +442,7 @@ def main():
                     res = generate_lockstep(det_model, vocab, [skels[b] for b in bs], device, a.temperature, max_steps=a.max_group,
                                             seeds=[a.seed * 100003 + i + b + 7 for b in bs], q_targets=[q_tgt[b] for b in bs], target_scale=a.target_scale,
                                             target_clip=tuple(a.target_clip), placers=placers, ring=ring, ring_clip=tuple(a.ring_clip))
-                except torch.cuda.OutOfMemoryError:                                # 0.6.3.1: this group again in two halves (fresh placers)
+                except torch.cuda.OutOfMemoryError:                                # this group again in two halves (fresh placers)
                     if len(bs) == 1:
                         raise
                     torch.cuda.empty_cache()
@@ -468,13 +468,13 @@ def main():
                                   **{f"planned_{n}": round(float(x), 1) for n, x in zip(ring.names, info["ring_planned"])},
                                   **{f"after_{n}": round(float(x), 1) for n, x in zip(ring.names, info["ring_after"])},
                                   **{f"target_{n}": round(float(x), 1) for n, x in zip(ring.names, info["ring_target"])}))
-            if "plan_bn" in info:                                                      # 0.6.1t: per-group plans, for per-group checks
+            if "plan_bn" in info:                                                      # per-group plans, for per-group checks
                 np.savez_compressed(out / f"plans_{i + b:05d}.npz", bn=info["plan_bn"], bq=info["plan_bq"], n=info["plan_n"], q=info["plan_q"],
                                     group_of=np.asarray(info["group_of"], np.int32), step=np.asarray(info.get("step_of", np.zeros(0)), np.int32))
-            elif not has_plan:                                                         # 0.6.1x: the generating row, no-plan models too
+            elif not has_plan:                                                         # the generating row, no-plan models too
                 np.savez_compressed(out / f"groups_{i + b:05d}.npz", group_of=np.asarray(info.get("group_of", np.zeros(0)), np.int32),
-                                    step=np.asarray(info.get("step_of", np.zeros(0)), np.int32))             # 0.6.2: sampler step of every stroke
-            if placer is not None:                                                     # 0.6.1x: per detail stroke of tok_det
+                                    step=np.asarray(info.get("step_of", np.zeros(0)), np.int32))             # sampler step of every stroke
+            if placer is not None:                                                     # per detail stroke of tok_det
                 rec = info.get("place_rec") or dict(redraws=np.zeros(0, np.int16), dt=np.zeros(0, np.int16), fb=np.zeros(0, np.uint8))
                 np.savez_compressed(out / f"place_{i + b:05d}.npz", **rec)
             pst = info.get("place", {})
@@ -590,7 +590,7 @@ def main():
                   skeleton_source=("model" if not (truth or sfrom) else "truth" if truth else "skeleton_from"),
                   attr_chunk=ATTR_CHUNK, det_oom_splits=oom_splits)
     from .prof import ON as PROF_ON, snapshot
-    if PROF_ON:                                                                    # 0.6.4a: SHOWERLM_PROF=1
+    if PROF_ON:                                                                    # SHOWERLM_PROF=1
         write_json(out / "prof.json", dict(n=len(rows), skel_batch=a.skel_batch, det_batch=a.det_batch, gpu=gpu_name, regions=snapshot(len(rows))))
     write_json(out / "summary.json", dict(n=len(rows), rule_fallbacks=dict(SAMPLE_FALLBACKS), photons=photons, place=place, median_n_skel=med("n_skel"), median_n_det=med("n_det"),
                                           median_max_group=med("max_group"), n_hit_max_group=int(sum(r["hit_max_group"] for r in rows)),

@@ -14,11 +14,11 @@ import torch.nn.functional as F
 
 PREFIX = ["bos", "qtot", "ntok", "qcum", "ncum", "tstart"]
 N_PREFIX = len(PREFIX)
-# 0.6.4b: SHOWERLM_ATTR_KV=1: the samplers' attribute decoder (sample.decode_one_rules, detail.decode_detail) keeps a KV
+# SHOWERLM_ATTR_KV=1: the samplers' attribute decoder (sample.decode_one_rules, detail.decode_detail) keeps a KV
 # cache and runs only the new slot per attribute instead of the whole prefix again (about 10x less work for 20 attributes).
 # The same function up to float rounding (a sampled value can change where two bins are within rounding); default off.
 ATTR_KV = os.environ.get("SHOWERLM_ATTR_KV", "0") == "1"
-# 0.6.4b.1: rows per attention call of the KV path.  The CUDA attention kernel puts rows x heads on one grid axis (limit
+# rows per attention call of the KV path.  The CUDA attention kernel puts rows x heads on one grid axis (limit
 # 65535); one call over ~8e4 rows (A40, 32 showers per detail batch) failed with "invalid configuration argument" (REAL,
 # v064b ev_tz_a40kv, 10-28).  Rows are independent, so the chunks give the same values.
 ATTR_KV_CHUNK = int(os.environ.get("SHOWERLM_ATTR_KV_CHUNK", "8192"))
@@ -98,7 +98,7 @@ class ShowerLM(nn.Module):
         super().__init__()
         self.sizes = list(vocab_sizes); self.names = list(attr_names); self.A = len(self.sizes)
         self.ai = {n: i for i, n in enumerate(self.names)}
-        # 0.3.0 options (all off = 0.2.0 behaviour)
+        # options (all off = 0.2.0 behaviour)
         self.cont = self.sizes[0] >= 4                                            # vocabulary has kind CONT (and attribute lt)
         self.budget, self.landmarks, self.q_weight_pow = bool(budget), bool(landmarks), float(q_weight_pow)
         # 0.5: exact rules applied in the loss and in sampling (showerlm.rules.Rules, set by train.build_model; None = off)
@@ -122,20 +122,20 @@ class ShowerLM(nn.Module):
         self.emb = nn.ModuleList([nn.Embedding(n, d) for n in self.sizes])
         self.prefix_emb = nn.ModuleDict({k: nn.Embedding(n, d) for k, n in self.prefix_sizes.items()})
         self.type_emb = nn.Embedding(2, d)
-        # 0.6.1g gplan: physical global variables G of the shower (showerlm.gfeat), one bin each, carried in the prefix
+        # gplan: physical global variables G of the shower (showerlm.gfeat), one bin each, carried in the prefix
         # tensor after the 6 prefix tokens; their summed embedding is added to every position (zero-initialised below, so a
         # model loaded from a checkpoint without G starts out exactly as that checkpoint)
         self.n_gfeat, self.n_gbins = int(n_gfeat), int(n_gbins)
         if self.n_gfeat:
             self.g_emb = nn.ModuleList([nn.Embedding(self.n_gbins, d) for _ in range(self.n_gfeat)])
-        # 0.6.1z zplan: skeleton light per depth slice (showerlm.zplan).  The planned light of every slice rides in the prefix
+        # zplan: skeleton light per depth slice (showerlm.zplan).  The planned light of every slice rides in the prefix
         # tensor after G (zp_emb, added like G to every position); the light still to come in every slice after a token rides
         # in the budget tensor after the two 0.3 budgets (zr_emb, added to that token).  Both zero-initialised.
         self.n_zslice, self.n_zbins = int(n_zslice), int(n_zbins)
         if self.n_zslice:
             self.zp_emb = nn.ModuleList([nn.Embedding(self.n_zbins, d) for _ in range(self.n_zslice)])
             self.zr_emb = nn.ModuleList([nn.Embedding(self.n_zbins, d) for _ in range(self.n_zslice)])
-        # 0.6.3 tplan: skeleton light per lateness slice (showerlm.tplan), the same mechanism as zplan: the planned light per
+        # tplan: skeleton light per lateness slice (showerlm.tplan), the same mechanism as zplan: the planned light per
         # slice rides in the prefix after the zplan columns (tp_emb), the light still to come per slice after a token in
         # the budget tensor after the zplan columns (tr_emb).  Both zero-initialised (a 0.6.1z checkpoint loads unchanged).
         self.n_tslice, self.n_tbins = int(n_tslice), int(n_tbins)
@@ -178,7 +178,7 @@ class ShowerLM(nn.Module):
     def embed_strokes(self, tok, bud=None, g=None):
         """tok (B, L, A) int -> (B, L, d); bud (B, L, 2) budget bins (strokes / photons still to come) when the model uses them;
         g (B, d) the embedding of the global variables (0.6.1g, embed_global) or None.
-        0.6.1z: bud (B, L, 2 + n_zslice), columns 2.. = bins of the light still to come per depth slice"""
+        bud (B, L, 2 + n_zslice), columns 2.. = bins of the light still to come per depth slice"""
         x = sum(self.emb[a](tok[..., a]) for a in range(self.A))
         if self.budget and bud is not None:
             x = x + self.bud_n(bud[..., 0]) + self.bud_q(bud[..., 1])
@@ -186,7 +186,7 @@ class ShowerLM(nn.Module):
                 zb = bud[..., 2: 2 + self.n_zslice].clamp(0, self.n_zbins - 1)
                 x = x + sum(self.zr_emb[k](zb[..., k]) for k in range(self.n_zslice))
             o = 2 + self.n_zslice
-            if self.n_tslice and bud.shape[-1] >= o + self.n_tslice:                 # 0.6.3: light still to come per lateness slice
+            if self.n_tslice and bud.shape[-1] >= o + self.n_tslice:                 # light still to come per lateness slice
                 tb = bud[..., o: o + self.n_tslice].clamp(0, self.n_tbins - 1)
                 x = x + sum(self.tr_emb[k](tb[..., k]) for k in range(self.n_tslice))
         if g is not None:
@@ -194,8 +194,8 @@ class ShowerLM(nn.Module):
         return x + self.type_emb.weight[1]
 
     def embed_global(self, prefix):
-        """0.6.1g: prefix (B, 6 + n_gfeat) -> (B, d) summed embeddings of the G bins; None without gplan (or a 6-column prefix).
-        0.6.1z: prefix (B, 6 + n_gfeat + n_zslice), the planned light per depth slice after G, its embeddings added too."""
+        """prefix (B, 6 + n_gfeat) -> (B, d) summed embeddings of the G bins; None without gplan (or a 6-column prefix).
+        prefix (B, 6 + n_gfeat + n_zslice), the planned light per depth slice after G, its embeddings added too."""
         out = None
         if self.n_gfeat and prefix.shape[1] >= N_PREFIX + self.n_gfeat:
             g = prefix[:, N_PREFIX: N_PREFIX + self.n_gfeat].clamp(0, self.n_gbins - 1)
@@ -206,7 +206,7 @@ class ShowerLM(nn.Module):
             zs = sum(self.zp_emb[k](z[:, k]) for k in range(self.n_zslice))
             out = zs if out is None else out + zs
         o += self.n_zslice
-        if self.n_tslice and prefix.shape[1] >= o + self.n_tslice:                # 0.6.3: planned light per lateness slice
+        if self.n_tslice and prefix.shape[1] >= o + self.n_tslice:                # planned light per lateness slice
             tt = prefix[:, o: o + self.n_tslice].clamp(0, self.n_tbins - 1)
             ts = sum(self.tp_emb[k](tt[:, k]) for k in range(self.n_tslice))
             out = ts if out is None else out + ts

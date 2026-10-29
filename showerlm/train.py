@@ -66,13 +66,13 @@ def build_model(cfg, vocab, device):
         if extra["k_max"] > vocab.w_ptr:
             raise SystemExit(f"model.k_max {extra['k_max']} > w_ptr {vocab.w_ptr}: the pointer attribute holds k + 1")
     zc = None
-    if m.get("zplan"):                                                          # 0.6.1z: longitudinal light plan (showerlm.zplan)
+    if m.get("zplan"):                                                          # longitudinal light plan (showerlm.zplan)
         from .zplan import default_cfg
         if is_detail(cfg) or not m.get("budget", False):
             raise SystemExit("model.zplan is a skeleton option and needs model.budget (it rides in the budget input)")
         zc = {**default_cfg(), **m["zplan"]}
     tc = None
-    if m.get("tplan"):                                                          # 0.6.3: lateness light plan (showerlm.tplan)
+    if m.get("tplan"):                                                          # lateness light plan (showerlm.tplan)
         from .tplan import default_cfg as t_default
         if is_detail(cfg) or not m.get("budget", False):
             raise SystemExit("model.tplan is a skeleton option and needs model.budget (it rides in the budget input)")
@@ -87,7 +87,7 @@ def build_model(cfg, vocab, device):
                      n_zbins=int(zc["n_bins"]) if zc else 48, n_tslice=len(tc["edges"]) if tc else 0, n_tbins=int(tc["n_bins"]) if tc else 48, **extra)
     model.zcfg = zc
     model.tcfg = tc
-    model.cont_top_extra = int(m.get("cont_top_extra", 0))                    # 0.5.2: extra bins on top of the cont_window top
+    model.cont_top_extra = int(m.get("cont_top_extra", 0))                    # extra bins on top of the cont_window top
     if m.get("rules"):                                                          # 0.5: exact rules in the loss and in sampling
         from .rules import Rules, check_order
         model.rules = Rules(vocab, m["rules"], model, detail=is_detail(cfg))
@@ -99,7 +99,7 @@ def build_model(cfg, vocab, device):
     if getattr(model, "group_order", "time") == "along" and model.rules is not None and model.rules.on["time_order"]:
         raise SystemExit("model.group_order along: the strokes of a group are not in time order, so rules.time_order must be off")
     if getattr(model, "occ", None) is not None:
-        model._vocab_occ = vocab                                                    # 0.6.2: the feature context decodes the skeleton
+        model._vocab_occ = vocab                                                    # the feature context decodes the skeleton
     model.landmark_lq = int(cfg.get("data", {}).get("landmark_lq", -1)) if bool(m.get("landmarks", False)) else -1
     return model.to(device)
 
@@ -229,7 +229,7 @@ def main():
         say(f"init from {ip} (EMA weights, step {ck0.get('step')}); new parameters kept at their init: {res.missing_keys}")
         write_json(run / "init.json", dict(init=str(ip), init_step=ck0.get("step"), new_params=res.missing_keys))
     t = cfg["train"]
-    # 0.6.2: the zero-initialised occupancy heads (occ.*) get lr x occ_feat.lr_mult (Adam moves a weight by about lr per
+    # the zero-initialised occupancy heads (occ.*) get lr x occ_feat.lr_mult (Adam moves a weight by about lr per
     # step, so a 20000-step fine-tune at 1.5e-4 could move them by ~1.6 at most; the rest of the model keeps the base lr)
     occ_p = [p for n_, p in model.named_parameters() if n_.startswith("occ.")]
     groups = [dict(params=[p for n_, p in model.named_parameters() if not n_.startswith("occ.")], mult=1.0)]
@@ -256,7 +256,7 @@ def main():
 
     bpl = bool(cfg["data"].get("bud_plan", False))                              # 0.4: budgets / counters relative to the decoded plan
     gtab = {}
-    if getattr(model, "n_gfeat", 0) and not detail:                              # 0.6.1g: G bins of every shower (showerlm.gfeat tables)
+    if getattr(model, "n_gfeat", 0) and not detail:                              # G bins of every shower (showerlm.gfeat tables)
         from .gfeat import GTable
         gdir = cfg["data"].get("gfeat")
         if not gdir:

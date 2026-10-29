@@ -50,67 +50,8 @@ def generate(model, vocab, B, device, temperature=1.0, max_tokens=20000, prefix_
              birth_ptr=True, constraints=False, time_order=False, gbins=None, zplan=None, tplan=None, check_every=8, min_plan_frac=0.0,
              late_guard=0.0, late_k=3.0, late_tries=16, late_jump=0.0, cap_stop_t=None, max_plan_frac=0.0):
     """B showers in parallel.  Returns a list of (T_b, A) int arrays and a dict with the plan and why each shower stopped
-    (eos = the model ended it; plan = stop_at_plan reached: photons >= planned photons (q) or strokes >= planned strokes (n);
-    max = max_tokens).
-    0.6.3.2 min_plan_frac > 0 (zplan / tplan models): no EOS while the skeleton light drawn so far is below min_plan_frac x
-    the planned skeleton light of the shower (the zplan row total, else the tplan row total); with min_tokens both apply.
-    0.6.4a late_guard > 0 (zplan / tplan models): a new chain head (kind STROKE) with light in the last lateness slice
-    (tau = t - depth / c >= the last tplan edge, 8 ns; models without a tplan: 8 ns) is decoded again, at most late_tries
-    times, when the shower's skeleton light in that slice would exceed late_cap = max(late_k x its planned light there (tplan
-    models), late_guard x its planned skeleton light).  Why (REAL, view/t90diag_n256_b.md): 1-2 of 256 generated skeletons
-    put ~70% of their light at tau > 8 ns near the 80 ns cap (t90 ~40 ns) while their plan asked for 1.2%; in 3000 training
-    showers t90 <= 2.8 ns and light after 20 ns <= 0.4%.  After late_tries the last draw is kept (fallback).  A redraw
-    decodes the whole batch again and keeps the new token of the refused rows only (one random stream: the other rows' later
-    draws change, their distribution does not).  info: late_redraws, late_fallbacks, late_jumps (per shower; late_jumps =
-    steps whose first draw was refused by late_jump).
-    0.6.4b late_jump > 0 (zplan models): a chain head is also refused when its time forces more than late_jump x the planned
-    skeleton light late.  Chain heads are written in time order (rule time_order: a head's t >= the previous head's t), so
-    after a head at time t every later head is at t or later, and the planned light still to draw at depths < c (t - 8 ns)
-    (max(0, zplan - drawn) per depth slice, linear inside a slice) can only come late.  Why (REAL, view/latediag_v064a.md,
-    v064a runs 10-28): every catastrophic late shower starts with a head that jumps to t = 55-75 ns within its first 1-48
-    tokens (0-16% of the plan drawn), usually deep (6-15 m), so its own lateness is < 8 ns and late_guard does not see it;
-    after it 60-100% of the heads are late and late_guard redraws thousands of times and falls back (and made the A40
-    skeleton batch of 256 slower, 8.9 s / shower vs 3.9 s at 64).  Normal showers draw their first late head after 50-86% of
-    the plan at t 9-15 ns.  CONT pieces are never refused (a CONT follows its head's time; 0.6.4a redrew them, uselessly).
-    0.6.4c cap_stop_t (a t bin; rules models): a chain head (kind STROKE) drawn at t >= cap_stop_t ends the skeleton instead
-    (the step becomes EOS, also below min_plan_frac; stop "cap").  Why (REAL, view/enddiag_064b_tok.md, 256 showers each):
-    skeleton tokens exactly at the 80 ns cap bin: truth 1 token in 1 shower; v064b tz 892 tokens in 21 showers (up to 290 in
-    one), t 508 in 40.  Heads are time ordered, so after a head at the cap every later head can only take the cap bin; the
-    shower keeps drawing there until its plan is used up (drawn / plan 1.03-1.05 at EOS).  The training data have no
-    tokens after the cap (the cache cut), so the model has no learned way out but EOS.  info cap_stops (0 / 1 per shower).
-    0.6.4c max_plan_frac > 0 (zplan / tplan models): the skeleton stops (stop "plan") at the first chain end (a piece with
-    lt = 0) once its drawn light reaches max_plan_frac x its planned skeleton light.  Why (REAL, view/enddiag_064b.md):
-    every v064b skeleton ended by EOS at 1.03-1.05 x its plan; the light past the plan is the last drawn = the latest and,
-    in time order, deepest (d99 13.1 / 13.4 m vs truth 12.3 m) [inference: the tail excess is that overshoot; the DAG
-    measures it].  The detail target follows the skeleton light (target slope), as for any shorter skeleton.
-
-    0.3.0 (models trained on the v3 vocabulary): a token after a piece with lt > 0 is a CONT by rule (its pointer is the
-    previous token, s = end, t inside a window around previous t + length / c); with birth_ptr False (data.birth_ptr of
-    the run) every other stroke is placed by its absolute head voxel and no pointer is sampled.  Budget inputs (strokes
-    and photons still to come) and landmark strokes (kept in the attention cache) follow the model's config.
-
-    constraints (0.4, v3 models): exact rules of the truth enforced while sampling (see sampling_rules).
-    time_order (with constraints): also forbid a chain head earlier than the previous head.  Off by default: true for the
-    truth, but cutting the earlier half of a broad t distribution makes every step jump later, so t runs to the 12 ns cap
-    and the model ends the shower early (0.4 detail model, first generation 2026-10-17).
-
-    0.5 models (model.rules set): the rules the model was trained with are always applied, identically to the loss
-    (showerlm.rules); constraints / time_order are then ignored.
-
-    0.6.1g gplan models: gbins (B, n_gfeat) are the bins of the global variables G each shower is generated for
-    (showerlm.gfeat.GTable.draw); they ride in the prefix tensor as in training.
-
-    0.6.1z zplan models: zplan (B, K) planned skeleton photons per depth slice (showerlm.zplan.ZTable); its bins ride in the
-    prefix after G, and after every drawn token the light still to come per slice (plan minus the light of the tokens drawn
-    so far, counted by showerlm.zplan.token_slice_light as in training) rides in the budget input.
-
-    0.6.3 tplan models (model.n_tslice): tplan (B, Kt) planned skeleton photons per LATENESS slice (showerlm.tplan.TTable),
-    bins in the prefix after the zplan ones, the light still to come per lateness slice in the budget input after the depth
-    slices (showerlm.tplan.token_tslice_light, as in training).
-    0.6.3 speed: the bookkeeping (drawn strokes, photons, plan light per slice, budgets, anchors of CONT pieces) stays on
-    the device (showerlm/tables.py: the same float64 arithmetic as the numpy code, so the tokens are those of 0.6.2 for the
-    same batch, seed and device); the only host sync is the "any shower still alive" test every check_every steps (dead
-    showers keep decoding, as before; their tokens are dropped).  info: q_plan, n_plan, stop, z_drawn, t_drawn."""
+    (eos = the model ended it; plan = stop_at_plan reached: photons >= planned photons (q) or strokes >= planned
+    strokes (n); max = max_tokens)."""
     from .tables import budget_bins_t, enc_z_t, tables_for
     use_rules = getattr(model, "rules", None) is not None and model.rules.any
     if use_rules:
@@ -221,7 +162,7 @@ def generate(model, vocab, B, device, temperature=1.0, max_tokens=20000, prefix_
     late_cap = edges_g = None
     late_red = torch.zeros(B, dtype=torch.long, device=device); late_fb = torch.zeros(B, dtype=torch.long, device=device)
     late_jmp = torch.zeros(B, dtype=torch.long, device=device)
-    cap_n = torch.zeros(B, dtype=torch.long, device=device)                       # 0.6.4c cap stops
+    cap_n = torch.zeros(B, dtype=torch.long, device=device)                       # cap stops
     if cap_stop_t is not None and not use_rules:
         raise SystemExit("cap_stop needs a skeleton model trained with the rules (time order, t cap)")
     if max_plan_frac > 0 and not (n_z or n_t):
@@ -240,7 +181,7 @@ def generate(model, vocab, B, device, temperature=1.0, max_tokens=20000, prefix_
             late_cap = torch.full_like(plan_tot, float("inf"))
         late_drawn = torch.zeros(B, dtype=torch.float64, device=device)
         jump_cap = late_jump * plan_tot
-        if n_z:                                                                  # 0.6.4b: depth slices [lo, hi) of the zplan, the last one to the box floor
+        if n_z:                                                                  # depth slices [lo, hi) of the zplan, the last one to the box floor
             from .common import C_M_PER_NS
             rz = np.asarray(ranges_sl, dtype=np.float64).reshape(3, 2)
             z_lo = edges_z
@@ -273,7 +214,7 @@ def generate(model, vocab, B, device, temperature=1.0, max_tokens=20000, prefix_
                 def late_of(t_):
                     _, tl = T.slice_light(t_, None, edges_g, ranges_sl)
                     return tl[:, -1]
-                def forced_of(t_):                                                # 0.6.4b: planned light still to come above depth c (t - 8 ns)
+                def forced_of(t_):                                                # planned light still to come above depth c (t - 8 ns)
                     t0 = T.t[t_[:, ix["t"]].clamp(0, len(T.t) - 1)].to(torch.float64)
                     D = C_M_PER_NS * (t0 - tau_last)
                     frac = ((D[:, None] - z_lo[None, :]) / (z_hi - z_lo)[None, :]).clamp(0.0, 1.0)
@@ -295,7 +236,7 @@ def generate(model, vocab, B, device, temperature=1.0, max_tokens=20000, prefix_
                     tok = torch.where(bad[:, None], t2, tok)
                     bad = bad & refuse(tok)
                 late_fb += bad.long()
-        if cap_stop_t is not None:                                                # 0.6.4c: a chain head at the t cap ends the skeleton
+        if cap_stop_t is not None:                                                # a chain head at the t cap ends the skeleton
             hit_cap = alive & (tok[:, ix["kind"]] == KIND_STROKE) & (tok[:, ix["t"]] >= int(cap_stop_t))
             tok[:, ix["kind"]] = torch.where(hit_cap, torch.full_like(hit_cap, KIND_EOS, dtype=torch.long), tok[:, ix["kind"]])
             cap_n += hit_cap.long()
@@ -328,7 +269,7 @@ def generate(model, vocab, B, device, temperature=1.0, max_tokens=20000, prefix_
                 z_drawn = z_drawn + torch.where(drawn[:, None], zl, torch.zeros_like(zl))
             if n_t:
                 t_drawn = t_drawn + torch.where(drawn[:, None], tl, torch.zeros_like(tl))
-        if plan_max is not None:                                                  # 0.6.4c: stop at the first chain end past the plan
+        if plan_max is not None:                                                  # stop at the first chain end past the plan
             end_ok = (tok[:, ix["lt"]] == 0) if cont else torch.ones_like(drawn)
             hit_m = drawn & alive & end_ok & ((z_drawn.sum(1) if n_z else t_drawn.sum(1)) >= plan_max)
             alive = alive & ~hit_m
@@ -398,11 +339,11 @@ def check_rule_order(model):
 
 
 def sampling_rules(model, vocab, t_head, prev):
-    """0.4 sampling constraints (never broken by the truth: checked on event 1772 and the synthetic test set):
-    t <= t_cap = enc_t(12 ns) (the cache keeps raw t < 12 ns); a chain head is not earlier than the previous chain head
-    (chains are ordered by head time); an absolutely placed head is not deeper than light can go by the upper edge of its
-    t bin (+ 1 voxel of slack); lt of a CONT is not larger than lt of the piece before; a piece whose next piece could not
-    start before t_cap (t + rule - t_win_lo > t_cap) ends its chain (lt = 0)."""
+    """0.4 sampling constraints (never broken by the truth: checked on event 1772 and the synthetic test set): t <= t_cap
+    = enc_t(12 ns) (the cache keeps raw t < 12 ns); a chain head is not earlier than the previous chain head (chains
+    are ordered by head time); an absolutely placed head is not deeper than light can go by the upper edge of its t bin
+    (+ 1 voxel of slack); lt of a CONT is not larger than lt of the piece before; a piece whose next piece could not
+    sta"""
     return dict(t_cap=vocab.t_cap, t_head=t_head, lt_prev=None if prev is None or "lt" not in vocab.index else prev[:, vocab.index["lt"]],
                 vocab=vocab)
 
@@ -427,10 +368,9 @@ def masked_or_cap(lg, allowed, fallback):
 def decode_one(model, ctx, fixed, temperature, keys, ptr_mask, rng, suppress_eos=False, attr_temp=None, key_t=None, force_cont=None, t_rule=None, birth_ptr=True, s_end=16,
                cons=None):
     """One stroke for the batch: attributes decoded in the model's order; `fixed` callables may overwrite values for some
-    samples; attr_temp {name: temperature} overrides the global temperature for single attributes.
-    force_cont (B,) bool (v3 models): samples whose previous piece has lt > 0 MUST be CONT, the others must not; a CONT
-    gets ptr 1, s = s_end and a t inside the window around t_rule (B,).  birth_ptr False: non-CONT strokes get ptr 0.
-    cons (sampling_rules): exact constraints of the truth applied to t, iz and lt."""
+    samples; attr_temp {name: temperature} overrides the global temperature for single attributes. force_cont (B,) bool
+    (v3 models): samples whose previous piece has lt > 0 MUST be CONT, the others must not; a CONT gets ptr 1, s =
+    s_end and a t inside the window around t_rule (B,).  birth_ptr False: non-CONT strokes get ptr 0."""
     B = ctx.shape[0]
     tok = torch.zeros(B, model.A, dtype=torch.long, device=ctx.device)
     x0 = model.h_proj(ctx)[:, None, :]
@@ -515,9 +455,7 @@ def decode_one_rules(model, ctx, fixed, temperature, keys, ptr_mask, rng, rctx, 
     """decode_one for 0.5 models: every attribute's logits pass through showerlm.rules.constrain, the function the
     training loss uses (kind: no PAD, CONT exactly when the previous piece has lt > 0; t above the time-order / CONT
     floor, as an offset when model.t_rel, below the cap and the CONT top; light cone on absolute heads; |d| <= 8 on
-    CONT pieces; lt rules; photons per record).  Only suppress_eos (--min-tokens) is sampling-only.  A CONT gets
-    ptr 1 and s = s_end, as in the data.  forced (B, A): take these values instead of sampling (tests: the masked
-    logits must equal the training ones)."""
+    CONT pieces; lt rules; photons per record).  Only suppress_eos (--min-tokens) is sampling-only."""
     from .rules import constrain
     R = model.rules
     B = ctx.shape[0]
@@ -525,8 +463,8 @@ def decode_one_rules(model, ctx, fixed, temperature, keys, ptr_mask, rng, rctx, 
     x0 = model.h_proj(ctx)[:, None, :]
     order = model.order
     is_cont = torch.zeros(B, dtype=torch.bool, device=ctx.device)
-    embs = []                                                                       # 0.6.3: decoder inputs of the attributes decoded so far
-    caches = {} if _model.ATTR_KV else None                                       # 0.6.4b SHOWERLM_ATTR_KV=1
+    embs = []                                                                       # decoder inputs of the attributes decoded so far
+    caches = {} if _model.ATTR_KV else None                                       # SHOWERLM_ATTR_KV=1
     for p, a in enumerate(order):                                                   # (each embedded once its value is final: same tensors)
         if p:
             embs.append(model.attr_in[order[p - 1]](tok[:, order[p - 1]])[:, None, :])

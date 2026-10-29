@@ -36,8 +36,10 @@ Measured time per shower (model loading not included):
 | CPU, 8 threads (login node) | 1, 1 | about 113 s (skeleton 73 s + detail 40 s), one shower |
 | CORSIKA 8, for comparison | | 17.7 s per shower (CPU) |
 
-On a busy GPU node the GTX 1080 time rose to about 40 s per shower. The GPU self-test of this package (same seed gives
-the same tokens as the 0.6.4c evaluation code) is still running; its result will be added here.
+On a busy GPU node the GTX 1080 time rose to about 40 s per shower. Self-test of this package: on a GTX 1080, 8 showers from `generate.py` are token-identical to the 0.6.4c
+evaluation code run with the same seed and the same float16 weights. With the original float32 weights the same seed
+gives different showers (float16 rounding changes the sampling path after a few hundred to a few thousand tokens);
+they are draws of the same model, not copies. The A40 test is still running.
 
 Memory: 2–5 GB on the GPU, under 8 GB of host memory. Use a GPU; the CPU path is for tests.
 
@@ -69,7 +71,6 @@ Job k writes `<outdir>/job_k` with seed `seed0 + k`. Options on the command line
 | box | 4 m × 4 m × 4 m (192³ voxels) | 20 m × 20 m × 20 m (960³ voxels) |
 | voxel | 2.083 cm | 2.083 cm |
 | light per shower | about 2 × 10⁷ photons | about 2.5 × 10⁸ photons |
-| strokes per shower | a few thousand | about 2,500 long + 35,000 short |
 | time per shower | about 1 min (GTX 1080) | about 10 s (A40), 25 s (GTX 1080) |
 
 The output keys are the same, so code written for the 12 ns showers reads these too; only the box and the grid size
@@ -157,7 +158,7 @@ Known shortcomings:
   tracks are too aligned with the axis;
 - the light after 40 ns is about twice the truth (a small share: 0.04% of the light instead of 0.02%);
 - about 1 in 2,000 showers derails: its skeleton stops early (a few hundred strokes), and the shower has about 30% too
-  little light and late light out to tens of ns. `timing.csv` flags these with `skel_stop` = `cap` and a small `n_skel`.
+  little light and late light out to tens of ns. In `timing.csv` they have an `n_skel` of a few hundred instead of about 2,500.
 
 ## Files
 
