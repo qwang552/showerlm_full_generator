@@ -34,7 +34,7 @@ Measured time per shower (model loading not included):
 | A40, KV cache | 256, 32 | 10.0 s (skeleton 1.8 s + detail 8.2 s), median of 1,024 showers |
 | GTX 1080, KV cache | 32, 8 | 24.9 s (skeleton 8.2 s + detail 16.8 s), median of 1,024 showers |
 | CPU, 8 threads (login node) | 1, 1 | about 113 s (skeleton 73 s + detail 40 s), one shower |
-| CORSIKA 8, for comparison | | 17.7 s per shower (CPU) |
+| CORSIKA 8, for comparison | | about 10 s per shower (CPU) |
 
 On a busy GPU node the GTX 1080 time rose to about 40 s per shower. Self-test of this package: on a GTX 1080, 8 showers from `generate.py` are token-identical to the 0.6.4c
 evaluation code run with the same seed and the same float16 weights. With the original float32 weights the same seed
