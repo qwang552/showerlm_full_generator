@@ -1,8 +1,7 @@
 # ShowerLM full generator (0.6.4c)
 
-Generates full in-ice Cherenkov light showers (20 m box, first 80 ns, 2 cm voxels, in the CORSIKA 8 voxel cache
-format) with the new ShowerLM 0.6.4c model, in one command. This is not yet the final version of the model, and it is
-intended for visualization and comparison tests only.
+Generates full in-ice Cherenkov light showers in the CORSIKA 8 format with the new ShowerLM model, in one command. This
+is not yet the final version of the model, and it is intended for visualization and comparison tests only.
 
 ## Quick start: HTCondor (recommended)
 
@@ -52,6 +51,8 @@ Measured with Python 3.10, torch 2.6.0 (CUDA 12.4), model loading not included:
 On a busy GPU node the GTX 1080 time rose to about 40 s per shower.
 
 ## Output
+
+Each shower covers a 20 m × 20 m × 20 m box (960³ voxels of 2.083 cm) and the light emitted within the first 80 ns.
 
 `showers/sample_XXXXX.npz`, one file per shower:
 
