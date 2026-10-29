@@ -1,0 +1,27 @@
+# Generate showers on HTCondor CPU slots (slow: use the GPU file when you can). Activate the Python environment, then
+# from the repository folder:
+#   mkdir -p /scratch/$USER/showerlm_logs
+#   condor_submit condor/generate_cpu.sub
+#   condor_submit condor/generate_cpu.sub jobs=20 n=2 cpus=8 seed0=100 outdir=/path/to/new/folder
+# Defaults: jobs=10, n=2 showers per job, cpus=8, seed0=0, outdir=<repository>/showers_cpu,
+# logdir=/scratch/<user>/showerlm_logs (condor logs may not be written to /data/user).
+# Job k writes <outdir>/job_k with seed seed0 + k. Jobs read and write the shared file system directly.
+
+repo   = $ENV(PWD)
+logs   = $(logdir:/scratch/$ENV(USER)/showerlm_logs)
+
+universe       = vanilla
+executable     = $(repo)/condor/run_cpu.sh
+arguments      = "$(repo) $(n:2) $(outdir:$(repo)/showers_cpu)/job_$(Process) $(Process) $(seed0:0)"
+getenv         = True
+environment    = "OMP_NUM_THREADS=$(cpus:8) MKL_NUM_THREADS=$(cpus:8) CUDA_VISIBLE_DEVICES="
+request_cpus   = $(cpus:8)
+request_memory = 8GB
+request_disk   = 1GB
+should_transfer_files   = YES
+when_to_transfer_output = ON_EXIT
+transfer_output_files   = ""
+output = $(logs)/gen_cpu.$(Cluster).$(Process).out
+error  = $(logs)/gen_cpu.$(Cluster).$(Process).err
+log    = $(logs)/gen_cpu.$(Cluster).log
+queue $(jobs:10)

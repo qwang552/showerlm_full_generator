@@ -1,0 +1,24 @@
+{
+ "name": "0.6.4c tz_cap",
+ "about": "Sampling settings of the ShowerLM 0.6.4c evaluation c_tz_cap (eval063_v064c_tz_cap_1028_2300: 23/27 rvC checks, 8.2 s per shower on an A40 with the KV cache). generate.py passes every key of sample06 as a showerlm.sample06 flag.",
+ "skeleton_model": "ft063tz_skel_1080 (tz: gplan + zplan + tplan skeleton, 0.6.3)",
+ "detail_model": "ft062ot_det_a40 (group detail model with group plan, 0.6.2)",
+ "sample06": {
+  "skel_min_tokens": 0,
+  "skel_min_plan": 0.7,
+  "skel_late_guard": 0.05,
+  "skel_late_jump": 0.5,
+  "skel_cap_stop": 80,
+  "skel_max_plan": 0,
+  "target_total": "prior",
+  "target_scale": "nq",
+  "place": "xu",
+  "place_occ": "path",
+  "place_w_occ": 0.95,
+  "place_tries": 16,
+  "place_keep_t": 0,
+  "sampler": "lockstep"
+ },
+ "render_variant": {"mode": "path", "w_min": 0.15, "causal": true},
+ "env": {"SHOWERLM_ATTR_KV": "1", "SHOWERLM_ATTR_CHUNK": "2048", "PYTORCH_CUDA_ALLOC_CONF": "expandable_segments:True"}
+}

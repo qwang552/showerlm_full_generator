@@ -1,0 +1,9 @@
+{
+ "steps": 20000,
+ "best_val_loss": 44.15393203496933,
+ "best_val_part": {
+  "plan": Infinity,
+  "stroke": Infinity
+ },
+ "params": 22159246
+}

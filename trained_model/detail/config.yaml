@@ -1,0 +1,50 @@
+# showerlm 0.6.2ot GROUP DETAIL model: 0.6.2o (occupancy / geometry features) + 0.6.2t (head before t, t above the light
+# cone at the head, groups ordered along their piece).  See showerlm_full_v062o_det.yaml and showerlm_full_v062t_det.yaml.
+# Fine-tune from the EMA weights of train06p_det_a40 (train.py --init; jobs/ft062.sh): 20000 steps, lr 1.5e-4 (warmup 500),
+# 128 fixed val items (val loss of all three variants and of the starting checkpoint, --val-at-start, on the same items).
+# Otherwise identical to showerlm_full_v06p_det.yaml (0.6 plan detail model, d 384, 6 layers, batch 1, accum 4).
+data:
+  tokens_train: /data/user/qwang/showerlm_full/out/f2/tokens_det40_train
+  tokens_val: /data/user/qwang/showerlm_full/out/f2/tokens_det40_val
+  exclude_eids: [10755, 11307]
+model:
+  type: group
+  group_mode: join
+  group_plan: true
+  k_max: 4096
+  d: 384
+  n_layers: 6
+  n_heads: 6
+  d_attr: 192
+  n_attr_layers: 2
+  n_attr_heads: 4
+  window: 8192
+  dropout: 0.1
+  budget: true
+  landmarks: false
+  t_window: 0
+  q_weight_pow: 0.0
+  t_rel: true
+  rules: {t_cap: true, time_order: false, cone: true, cont_window: true, lt: true, kind: true, q_per_record: true, support: true, hung_cone: true}
+  occ_feat: {w_occ: 0.15, rank: 8, lr_mult: 10.0, ranges: [-10.0, 10.0, -10.0, 10.0, 30.0, 50.0]}   # w_occ = rvC w_min; heads at lr x 10
+  pos_first: true
+  group_order: along
+  attr_order: [kind, ptr, s, dx, dy, dz, ix, iy, iz, t, ox, oy, oz, th, ph, len, lt, lq, lc, coh]
+train:
+  batch: 1
+  accum: 4
+  seq_len_schedule: [[0, 2048]]
+  trim_pad: true
+  lr: 1.5e-4
+  warmup: 500
+  steps: 20000
+  weight_decay: 0.1
+  grad_clip: 1.0
+  amp: "off"
+  ema: 0.999
+  log_every: 20
+  val_every: 500
+  val_items: 128
+  ckpt_every: 500
+  workers: 4
+  seed: 0

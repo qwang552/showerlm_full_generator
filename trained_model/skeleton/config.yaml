@@ -1,0 +1,56 @@
+# 0.6.3tz SKELETON model: the same model and data as showerlm_full_v063t_skel.yaml (0.6.1z + the lateness plan tplan), but
+# fine-tuned from the EMA weights of the 0.6.1z run (jobs/ft063.sh tz: --init ft061z_skel_a40) instead of the 0.6 skeleton run:
+# the G and depth-plan embeddings are already trained, the tplan embeddings start at zero (step 0 = 0.6.1z exactly), so a
+# shorter, gentler schedule: 8000 steps at lr 1e-4 (warmup 500).  Parallel start next to the t run; the evaluation says
+# which skeleton is better.
+data:
+  tokens_train: /data/user/qwang/showerlm_full/out/f2/tokens_skel40_train
+  tokens_val: /data/user/qwang/showerlm_full/out/f2/tokens_skel40_val
+  exclude_eids: [10755, 11307]
+  tstart_prev: true
+  bud_plan: true
+  gfeat: /data/user/qwang/showerlm_phys/gfeat_skel40
+  zplan_table: /data/user/qwang/showerlm_phys/zplan_skel40
+  tplan_table: /data/user/qwang/showerlm_phys/tplan_skel40
+  whole_sequence: true
+  birth_ptr: false
+  landmark_lq: -1
+model:
+  d: 384
+  n_layers: 6
+  n_heads: 6
+  d_attr: 192
+  n_attr_layers: 2
+  n_attr_heads: 4
+  window: 4096
+  dropout: 0.1
+  causal_ptr: true
+  budget: true
+  landmarks: false
+  t_window: [40, 24]
+  cont_top_extra: 16
+  q_weight_pow: 0.0
+  t_rel: true
+  gplan: {n_feat: 9, n_bins: 32}
+  zplan: {edges: [0.0, 0.5, 1.0, 1.5, 2.0, 3.0, 4.0, 5.0, 6.0, 8.0, 10.0, 14.0], ranges: [-10, 10, -10, 10, 30, 50], n_bins: 48, q_max: 1.0e+8, jitter: 0.03}
+  tplan: {edges: [0.0, 0.25, 0.5, 1.0, 2.0, 4.0, 8.0], ranges: [-10, 10, -10, 10, 30, 50], n_bins: 48, q_max: 1.0e+8, jitter: 0.03}
+  rules: {t_cap: true, time_order: true, cone: true, cont_window: true, lt: true, kind: true, q_per_record: true, support: true, hung_cone: true}
+  attr_order: [kind, t, ptr, s, dx, dy, dz, ix, iy, iz, ox, oy, oz, th, ph, len, lt, lq, lc, coh]
+train:
+  batch: 1
+  accum: 4
+  seq_len_schedule: [[0, 4096]]
+  trim_pad: true
+  lr: 1.0e-4
+  warmup: 500
+  steps: 8000
+  weight_decay: 0.1
+  grad_clip: 1.0
+  amp: "off"
+  ema: 0.999
+  log_every: 20
+  val_every: 500
+  val_items: 128
+  ckpt_every: 500
+  workers: 4
+  seed: 0

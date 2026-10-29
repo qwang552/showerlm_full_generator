@@ -1,0 +1,4 @@
+numpy>=1.24
+torch>=2.0
+matplotlib>=3.6
+pyyaml>=6.0

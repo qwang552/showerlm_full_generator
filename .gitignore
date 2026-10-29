@@ -1,0 +1,5 @@
+showers/
+showers_*/
+__pycache__/
+*.pyc
+.ipynb_checkpoints/

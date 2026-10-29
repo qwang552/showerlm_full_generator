@@ -1,0 +1,22 @@
+{
+ "tokens": "/data/user/qwang/showerlm_full/out/f2/tokens_det40_train",
+ "n": 1500,
+ "n_picked": 1500,
+ "seed": 0,
+ "b": -0.6288712972201985,
+ "b_se": 0.005478082300287709,
+ "q_skel_mean": 133305594.25790343,
+ "q_skel_std": 15538394.322558295,
+ "q_det_mean": 111316568.13052142,
+ "q_det_std": 10312076.999667453,
+ "q_total_mean": 244622162.38842487,
+ "q_total_std": 6641469.895036259,
+ "corr_skel_det": -0.9475928268050484,
+ "corr_total_skel": 0.8682933476100028,
+ "slope_det_on_skel": -0.6288712972201985,
+ "slope_ndet_on_skel": -0.0002383144134969326,
+ "n_det_mean": 35030.562666666665,
+ "det_photons_per_stroke_mean": 3185.168604974426,
+ "slope_det_pps_on_skel": 3.959622623757434e-06,
+ "det_resid_std": 3294508.2374163666
+}
