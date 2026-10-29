@@ -5,7 +5,6 @@ in a 20 m × 20 m × 20 m box (960³ voxels of 2.083 cm), light emitted within t
 the 0.6.4c evaluation (tz skeleton, group detail model, t-cap stop). The trained models and the small prior tables
 are in this folder; no training data is needed.
 
-It is meant for tests, comparisons and method development, not for physics analysis: see *How good it is* below.
 
 ## Quick start: HTCondor (recommended)
 
