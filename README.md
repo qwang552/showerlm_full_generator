@@ -1,7 +1,7 @@
 # ShowerLM full generator (0.6.4c)
 
-Generates full in-ice Cherenkov light showers in the CORSIKA 8 format with the new ShowerLM model, in one command. This
-is not yet the final version of the model, and it is intended for visualization and comparison tests only.
+Generates full in-ice Cherenkov light showers with the new ShowerLM model, in one command. This is not yet the final version of the model, and it is
+intended for visualization and comparison tests only.
 
 ## Quick start: HTCondor (recommended)
 
