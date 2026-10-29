@@ -7,74 +7,44 @@ are in this folder; no training data is needed.
 
 It is meant for tests, comparisons and method development, not for physics analysis: see *How good it is* below.
 
-## Usage
+## Quick start: HTCondor (recommended)
+
+Generating many showers takes minutes to hours, so submit jobs instead of running `generate.py` by hand. Activate
+the Python environment (`pip install -r requirements.txt`), then from the repository folder:
 
 ```bash
-pip install -r requirements.txt
-python generate.py --n 10 --out showers --seed 0
+mkdir -p /scratch/$USER/showerlm_logs
+condor_submit condor/generate_a40.sub                      # A40:      4 jobs x 256 showers, about 45 min per job
+condor_submit condor/generate_1080.sub                     # GTX 1080: 8 jobs x 128 showers, about 55 min per job
+condor_submit condor/generate_cpu.sub jobs=50 n=4          # CPU:      50 jobs x 4 showers, roughly 10 min per job
 ```
 
-| option | default | meaning |
-|---|---|---|
-| `--n` | 10 | number of showers |
-| `--out` | `showers` | output folder (must not exist) |
-| `--seed` | 0 | random seed; the same seed, batch sizes and GPU type give the same showers |
-| `--device` | `auto` | sets the batch sizes: `a40` (skeleton 256, detail 32), `1080` (32, 8), `cpu` (4, 2); `auto` picks `a40` on a GPU with more than 20 GB, `1080` on a smaller GPU, `cpu` without one |
-| `--skel-batch`, `--det-batch` | by `--device` | override the batch sizes |
-| `--render` | `rvC` | voxel renderer: `rvC` is the one the evaluation uses; `v06` is the plain 0.6 renderer |
-| `--no-kv` | off | switch off the KV cache of the attribute decoder (slower, same distribution) |
+Change the amount on the command line: `jobs=` (number of jobs), `n=` (showers per job), `seed0=` (job k uses seed
+`seed0 + k`), `outdir=` (default `showers_a40`, `showers_1080`, `showers_cpu` in the repository; job k writes
+`<outdir>/job_k`), `logdir=` (default `/scratch/$USER/showerlm_logs`; condor logs may not be written to /data/user),
+and `cpus=` for the CPU file. A job refuses to write into an existing folder, so give each submission a new
+`outdir=` and a new `seed0=`. For example, 1,000 showers on CPU slots:
 
-The sampling settings are fixed in `run.json` (the 0.6.4c `tz_cap` settings); `generate.py` passes them to
-`showerlm.sample06`.
+```bash
+condor_submit condor/generate_cpu.sub jobs=250 n=4 seed0=1000 outdir=/data/user/$USER/showers_cpu_1000
+```
 
-Measured time per shower (model loading not included):
+GPU jobs ask for 8 GB (A40) or 6 GB (GTX 1080) of memory and use 2–5 GB; CPU jobs ask for 8 cores and 8 GB. CPU job
+times are estimated from the login-node test below, not measured on condor slots. Check the jobs with
+`condor_q`; the showers land in `<outdir>/job_k` (format below).
+
+## Time per shower
+
+Measured, model loading not included:
 
 | hardware | batches (skeleton, detail) | time per shower |
 |---|---|---|
 | A40, KV cache | 256, 32 | 10.0 s (skeleton 1.8 s + detail 8.2 s), median of 1,024 showers |
 | GTX 1080, KV cache | 32, 8 | 24.9 s (skeleton 8.2 s + detail 16.8 s), median of 1,024 showers |
-| CPU, 8 threads (login node) | 1, 1 | about 113 s (skeleton 73 s + detail 40 s), one shower |
+| CPU, 8 threads (login node) | 1, 1 | about 2 min (skeleton 73–84 s + detail 40–56 s), one shower |
 | CORSIKA 8, for comparison | | about 10 s per shower (CPU) |
 
-On a busy GPU node the GTX 1080 time rose to about 40 s per shower. Self-test of this package: on a GTX 1080, 8 showers from `generate.py` are token-identical to the 0.6.4c
-evaluation code run with the same seed and the same float16 weights. With the original float32 weights the same seed
-gives different showers (float16 rounding changes the sampling path after a few hundred to a few thousand tokens);
-they are draws of the same model, not copies. The A40 test is still running.
-
-Memory: 2–5 GB on the GPU, under 8 GB of host memory. Use a GPU; the CPU path is for tests.
-
-To view the showers, open `visualize.ipynb`.
-
-## HTCondor
-
-Activate the Python environment, then from the repository folder:
-
-```bash
-mkdir -p /scratch/$USER/showerlm_logs
-condor_submit condor/generate_a40.sub                    # 4 jobs x 256 showers on A40 slots
-condor_submit condor/generate_1080.sub                   # 8 jobs x 128 showers on GTX 1080 slots
-condor_submit condor/generate_cpu.sub jobs=20 n=2        # CPU slots (slow)
-```
-
-Job k writes `<outdir>/job_k` with seed `seed0 + k`. Options on the command line: `jobs=`, `n=`, `seed0=`,
-`outdir=` (default `showers_a40`, `showers_1080`, `showers_cpu` in the repository), `logdir=` (default
-`/scratch/$USER/showerlm_logs`; condor logs may not be written to /data/user), and `cpus=` for the CPU file.
-
-## Differences from the 12 ns generator
-
-[showerlm_generator](https://github.com/qwang552/showerlm_generator) generates the first 12 ns of a shower in a
-4 m box. This generator covers the whole shower:
-
-| | 12 ns generator | this generator |
-|---|---|---|
-| time window | first 12 ns | 80 ns |
-| box | 4 m × 4 m × 4 m (192³ voxels) | 20 m × 20 m × 20 m (960³ voxels) |
-| voxel | 2.083 cm | 2.083 cm |
-| light per shower | about 2 × 10⁷ photons | about 2.5 × 10⁸ photons |
-| time per shower | about 1 min (GTX 1080) | about 10 s (A40), 25 s (GTX 1080) |
-
-The output keys are the same, so code written for the 12 ns showers reads these too; only the box and the grid size
-(960 instead of 192) change.
+On a busy GPU node the GTX 1080 time rose to about 40 s per shower.
 
 ## Output
 
@@ -94,6 +64,34 @@ The keys are the same as in the cache events (`showerlm.common.load_event`). The
 and `place_XXXXX.npz` (the plans drawn for the shower and the placement record), `run.json`, `timing.csv` (one row per
 shower), `summary.json`, and three plan checks (`gcheck`, `zcheck`, `tcheck`: what the plan asked for and what the
 shower got).
+
+To look at them, open `visualize.ipynb` (2D projections, time profile and 3D view per shower).
+
+## Running generate.py directly
+
+Slow; only for a quick test of one or two showers:
+
+```bash
+python generate.py --n 4 --out showers --seed 0
+```
+
+| option | default | meaning |
+|---|---|---|
+| `--n` | 10 | number of showers |
+| `--out` | `showers` | output folder (must not exist) |
+| `--seed` | 0 | random seed; the same seed, batch sizes and GPU type give the same showers |
+| `--device` | `auto` | sets the batch sizes: `a40` (skeleton 256, detail 32), `1080` (32, 8), `cpu` (4, 2); `auto` picks `a40` on a GPU with more than 20 GB, `1080` on a smaller GPU, `cpu` without one |
+| `--skel-batch`, `--det-batch` | by `--device` | override the batch sizes |
+| `--render` | `rvC` | voxel renderer: `rvC` is the one the evaluation uses; `v06` is the plain 0.6 renderer |
+| `--no-kv` | off | switch off the KV cache of the attribute decoder (slower, same distribution) |
+
+The sampling settings are fixed in `run.json` (the 0.6.4c `tz_cap` settings, listed under *Sampler settings*);
+`generate.py` passes them to `showerlm.sample06`.
+
+Self-test: on a GTX 1080, 8 showers from `generate.py` are token-identical to the 0.6.4c evaluation code run with
+the same seed and the same float16 weights. With the original float32 weights the same seed gives different showers
+(float16 rounding changes the sampling path after a few hundred to a few thousand tokens); they are draws of the
+same model, not copies. The A40 test is still running.
 
 ## Model
 
@@ -139,7 +137,7 @@ The checkpoints contain the averaged (EMA) weights in float16.
 
 ### How good it is
 
-The 0.6.4c evaluation compares 256 generated showers with the CORSIKA 8 test showers on 27 checks (23 numbers and 4
+The 0.6.4c evaluation (float32 weights) compares 256 generated showers with the CORSIKA 8 test showers on 27 checks (23 numbers and 4
 profiles, voxels drawn with rvC). It passes 23 of 27; the true tokens drawn the same way pass 24, which is the
 ceiling of this description. The four that fail:
 
@@ -159,6 +157,22 @@ Known shortcomings:
 - the light after 40 ns is about twice the truth (a small share: 0.04% of the light instead of 0.02%);
 - about 1 in 2,000 showers derails: its skeleton stops early (a few hundred strokes), and the shower has about 30% too
   little light and late light out to tens of ns. In `timing.csv` they have an `n_skel` of a few hundred instead of about 2,500.
+
+## Differences from the 12 ns generator
+
+[showerlm_generator](https://github.com/qwang552/showerlm_generator) generates the first 12 ns of a shower in a
+4 m box. This generator covers the whole shower:
+
+| | 12 ns generator | this generator |
+|---|---|---|
+| time window | first 12 ns | 80 ns |
+| box | 4 m × 4 m × 4 m (192³ voxels) | 20 m × 20 m × 20 m (960³ voxels) |
+| voxel | 2.083 cm | 2.083 cm |
+| light per shower | about 2 × 10⁷ photons | about 2.5 × 10⁸ photons |
+| time per shower | about 1 min (GTX 1080) | about 10 s (A40), 25 s (GTX 1080) |
+
+The output keys are the same, so code written for the 12 ns showers reads these too; only the box and the grid size
+(960 instead of 192) change.
 
 ## Files
 
