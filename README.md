@@ -170,11 +170,16 @@ Known shortcomings:
 | time window | first 12 ns | 80 ns |
 | box | 4 m × 4 m × 4 m (192³ voxels) | 20 m × 20 m × 20 m (960³ voxels) |
 | voxel | 2.083 cm | 2.083 cm |
-| light per shower | about 2 × 10⁷ photons | about 2.5 × 10⁸ photons |
+| light per shower | about 1 × 10⁸ photons (0.5–1.4 × 10⁸; about 40% of the shower) | about 2.5 × 10⁸ photons |
 | time per shower | about 1 min (GTX 1080) | about 10 s (A40), 25 s (GTX 1080) |
 
 The output keys are the same, so code written for the 12 ns showers reads these too; only the box and the grid size
 (960 instead of 192) change.
+
+The sparse v2 generator ([corsika_cherenkov_generator](https://github.com/qwang552/corsika_cherenkov_generator))
+writes other keys (`xyz` in m, `nphotons`, `ijk` on 192³, `box_m`). To get the same quantities from these files use
+`xyz = lo + (ijk + 0.5 + off) * 20 / 960` with `lo = (-10, -10, 30)` m, `nphotons = q`, and depth below the injection
+point = 50 m − z.
 
 ## Files
 
