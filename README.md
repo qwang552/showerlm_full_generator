@@ -1,9 +1,7 @@
 # ShowerLM full generator (0.6.4c)
 
-Generates in-ice Cherenkov light showers in the format of the CORSIKA 8 full-shower voxel cache: photons per voxel
-in a 20 m × 20 m × 20 m box (960³ voxels of 2.083 cm), light emitted within the first 80 ns. This is the model behind
-the 0.6.4c evaluation (tz skeleton, group detail model, t-cap stop). The trained models and the small prior tables
-are in this folder; no training data is needed. This is not yet the final version of the model, and it is
+Generates full in-ice Cherenkov light showers (20 m box, first 80 ns, 2 cm voxels, in the CORSIKA 8 voxel cache
+format) with the new ShowerLM 0.6.4c model, in one command. This is not yet the final version of the model, and it is
 intended for visualization and comparison tests only.
 
 ## Quick start: HTCondor (recommended)
